@@ -53,7 +53,7 @@ ScrapeForge combines adaptive stealth, JS rendering, AI extraction, Knowledge Gr
 
 ```bash
 # Clone
-git clone <repo-url> && cd ScrapeForge
+git clone https://github.com/adarshkr357/ScrapeForge.git && cd ScrapeForge
 
 # Copy env
 cp .env.example .env
