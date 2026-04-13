@@ -1,0 +1,18 @@
+{
+  "name": "scrapeforge-node-worker",
+  "version": "1.0.0",
+  "description": "ScrapeForge Node.js Browser Worker (Playwright)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "bullmq": "^5.25.0",
+    "ioredis": "^5.4.0",
+    "uuid": "^10.0.0"
+  },
+  "engines": { "node": ">=20.0.0" }
+}

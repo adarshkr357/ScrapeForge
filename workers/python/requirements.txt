@@ -1,0 +1,44 @@
+# ================================================================
+# ScrapeForge — Python Worker Dependencies
+# ================================================================
+
+# HTTP Client
+httpx[http2]==0.27.*
+curl-cffi==0.7.*
+
+# HTML Parsing
+beautifulsoup4==4.12.*
+lxml==5.3.*
+
+# Browser Automation
+selenium==4.25.*
+undetected-chromedriver==3.5.*
+
+# Search Engines
+duckduckgo-search==7.2.*
+
+# Redis (BullMQ-compatible queue consumer)
+redis==5.2.*
+bullmq==2.3.*
+
+# Data Validation
+pydantic==2.9.*
+
+# NLP
+spacy==3.8.*
+nltk==3.9.*
+
+# Image Processing
+Pillow==11.0.*
+
+# CAPTCHA OCR
+# pytesseract==0.3.*
+
+# Async support
+asyncio-throttle==1.0.*
+
+# URL parsing
+tldextract==5.1.*
+
+# Robots.txt
+robotexclusionrulesparser==1.7.*

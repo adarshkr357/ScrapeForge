@@ -1,0 +1,46 @@
+{
+  "name": "scrapeforge-api",
+  "version": "1.0.0",
+  "description": "ScrapeForge — Unified Web Scraping & Data Intelligence API",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js",
+    "test": "node --test src/**/*.test.js",
+    "seed": "node src/scripts/seed.js"
+  },
+  "dependencies": {
+    "axios": "^1.15.0",
+    "bcryptjs": "^2.4.3",
+    "bullmq": "^5.25.0",
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
+    "dayjs": "^1.11.0",
+    "dotenv": "^16.4.0",
+    "express": "^4.21.0",
+    "express-rate-limit": "^7.4.0",
+    "helmet": "^8.0.0",
+    "https-proxy-agent": "^9.0.0",
+    "ioredis": "^5.4.0",
+    "json2csv": "^5.0.6",
+    "jsonwebtoken": "^9.0.2",
+    "marked": "^14.0.0",
+    "mongoose": "^8.8.0",
+    "node-cron": "^3.0.3",
+    "openai": "^4.70.0",
+    "rate-limit-redis": "^4.2.0",
+    "sanitize-html": "^2.13.0",
+    "socket.io": "^4.8.0",
+    "socks-proxy-agent": "^8.0.0",
+    "turndown": "^7.2.0",
+    "uuid": "^10.0.0",
+    "winston": "^3.15.0",
+    "xmldom": "^0.6.0",
+    "xpath": "^0.0.34",
+    "zod": "^3.23.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

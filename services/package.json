@@ -1,0 +1,19 @@
+{
+  "name": "scrapeforge-background-services",
+  "version": "1.0.0",
+  "description": "ScrapeForge Background Services",
+  "scripts": {
+    "proxy-checker": "node proxy-checker/index.js",
+    "domain-learner": "node domain-learner/index.js",
+    "scheduler": "node scheduler/index.js",
+    "change-detector": "node change-detector/index.js"
+  },
+  "dependencies": {
+    "mongoose": "^8.8.0",
+    "ioredis": "^5.4.0",
+    "bullmq": "^5.25.0",
+    "node-cron": "^3.0.3",
+    "uuid": "^10.0.0",
+    "dotenv": "^16.4.0"
+  }
+}
