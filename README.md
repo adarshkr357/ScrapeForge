@@ -103,7 +103,7 @@ cd workers/node-browser && npm run start
 
 ### 🔑 Default Credentials
 
-After running the seed script, log into the dashboard at `http://localhost:5173`:
+After running the seed script, log into the dashboard at `http://localhost:8080`:
 - **Email:** `demo@scrapeforge.io`
 - **Password:** `DemoPass123!`
 
