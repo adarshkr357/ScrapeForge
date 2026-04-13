@@ -13,13 +13,13 @@
 
 ---
 
-ScrapeForge combines adaptive stealth, JS rendering, AI extraction, Knowledge Graph construction, SERP scraping, site crawling, and LLM-ready data output — all behind a single unified API and a powerful React dashboard.
+ScrapeForge combines adaptive stealth, JS rendering, proxy rotation, SERP scraping, and deep site crawling — all behind a single unified API and a powerful React dashboard.
 
 ## ✨ Key Features
 
 - **🌐 Unified API** - Scrape, crawl, extract, and search through one RESTFUL gateway.
 - **🛡️ Adaptive Stealth Engine** - Bypasses anti-bots via TLS mimicry, CAPTCHA solving, behavioral simulation, and automatic proxy rotation (Datacenter, Residential, Mobile).
-- **🧠 AI & NLP Extraction** - Transform unstructured HTML into structured JSON using OpenAI, Anthropic, or local LLMs.
+- **🛠️ Rule-Based Extraction** - Extract structured data using CSS selectors, XPath, and Regex.
 - **⚡ High-Performance Architecture** - Queue-based distributed architecture running Node.js and Python workers processing 1000s of concurrent jobs.
 - **🕸️ Deep Site Crawling** - Automated discovery, pagination handling, and sitemap parsing.
 - **📊 Real-time Dashboard** - Monitor credit usage, success rates, worker latency, and job statuses via real-time WebSockets.
@@ -128,7 +128,7 @@ X-API-Key: sf_demo_YOUR_API_KEY
 | `GET`  | `/api/v1/scrape/:id` | Poll async result status | 0 |
 | `POST` | `/api/v1/crawl` | Start broad site crawl job | per-page |
 | `POST` | `/api/v1/search` | SERP scrape (7 engines) | 5 |
-| `POST` | `/api/v1/extract` | LLM extraction from HTML | 5 |
+| `POST` | `/api/v1/extract` | Rule-based HTML extraction | 5 |
 
 ### Scrape Example
 
