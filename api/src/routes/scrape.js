@@ -390,20 +390,48 @@ router.get('/:requestId', async (req, res) => {
             });
         }
 
+        if (request.status === 'failed') {
+            return res.json({
+                success: false,
+                requestId,
+                status: 'failed',
+                error: request.errorMessage || 'Request failed',
+                creditsUsed: 0,
+                latencyMs: request.latencyMs,
+            });
+        }
+
         // Failsafe: Check Redis directly in case QueueEvent listener missed the completion event
         const { getRedisConnection } = require('../queue/connection');
         const redis = getRedisConnection();
         const cached = await redis.get(`result:${requestId}`);
         if (cached) {
             const result = JSON.parse(cached);
-            // Lazily update DB since we caught it
-            await Request.updateOne({ requestId }, { status: 'completed', creditsUsed: result.credits_used || 1, latencyMs: result.latencyMs }).catch(() => { });
+            // Determine actual status from the result — don't blindly assume completed
+            const isSuccess = result.success !== false && result.statusCode >= 200 && result.statusCode < 400;
+            const finalStatus = isSuccess ? 'completed' : 'failed';
+            const finalCredits = isSuccess ? (result.credits_used || 1) : 0;
+
+            // Lazily update DB with the CORRECT status
+            await Request.updateOne(
+                { requestId, status: { $in: ['queued', 'processing'] } },
+                {
+                    status: finalStatus,
+                    creditsUsed: finalCredits,
+                    latencyMs: result.latencyMs,
+                    errorMessage: isSuccess ? null : (result.error || `HTTP ${result.statusCode}`),
+                    completedAt: new Date(),
+                }
+            ).catch(() => { });
+
             return res.json({
-                success: true,
+                success: isSuccess,
                 requestId,
-                status: 'completed',
-                data: result.formattedOutput || result.extractedData || result.data || result,
-                creditsUsed: result.credits_used || 1,
+                status: finalStatus,
+                data: isSuccess ? (result.formattedOutput || result.extractedData || result.data || result) : undefined,
+                error: isSuccess ? undefined : (result.error || `HTTP ${result.statusCode}`),
+                blocked: result.blocked || false,
+                creditsUsed: finalCredits,
                 latencyMs: result.latencyMs,
             });
         }

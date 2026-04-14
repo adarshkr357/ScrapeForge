@@ -7,7 +7,9 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const ApiKey = require('../models/ApiKey');
 const Request = require('../models/Request');
+const UsageLog = require('../models/UsageLog');
 const { getRedisConnection } = require('../queue/connection');
+const { getPlanLimit } = require('../services/creditBilling');
 
 // ── GET /account ──
 router.get('/', async (req, res) => {
@@ -22,7 +24,11 @@ router.get('/', async (req, res) => {
     res.json({
       success: true,
       data: {
-        user: safeUser,
+        user: {
+          ...safeUser,
+          creditLimit: getPlanLimit(safeUser.plan),
+          creditsUsed: getPlanLimit(safeUser.plan) - (safeUser.credits || 0),
+        },
         apiKeys: apiKeys.map(k => ({
           _id: k._id,
           keyPrefix: k.keyPrefix,
@@ -127,9 +133,12 @@ router.get('/usage', async (req, res) => {
       return acc;
     }, { creditsUsed: 0, requestCount: 0, successCount: 0, failCount: 0 });
 
-    // User.credits = authoritative credit balance
-    const user = await User.findById(req.user._id).select('credits').lean();
-    const userCredits = user?.credits || 0;
+    // User.credits = authoritative credit balance (already decremented on each charge)
+    const user = await User.findById(req.user._id).select('credits plan').lean();
+    const creditsRemaining = user?.credits || 0;
+    const planLimit = getPlanLimit(user?.plan);
+    // All-time credits used = plan limit - current balance
+    const allTimeUsed = planLimit - creditsRemaining;
 
     res.json({
       success: true,
@@ -141,9 +150,9 @@ router.get('/usage', async (req, res) => {
           : 1,
         dailyUsage,
         currentApiKey: {
-          credits: userCredits,
-          creditsUsed: totals.creditsUsed,
-          remaining: Math.max(0, userCredits - totals.creditsUsed),
+          credits: planLimit,
+          creditsUsed: allTimeUsed,
+          remaining: creditsRemaining,
         },
       },
     });
@@ -263,9 +272,12 @@ router.get('/dashboard-stats', async (req, res) => {
       { $limit: 5 }
     ]);
 
-    // User.credits = authoritative balance
-    const user = await User.findById(userId).select('credits').lean();
+    // User.credits = authoritative balance (already decremented atomically on each charge)
+    const user = await User.findById(userId).select('credits plan').lean();
     const creditsRemaining = user?.credits || 0;
+    const planLimit = getPlanLimit(user?.plan);
+    // All-time credits used = plan limit - current balance
+    const allTimeUsed = planLimit - creditsRemaining;
 
     const response = {
       success: true,
@@ -274,9 +286,9 @@ router.get('/dashboard-stats', async (req, res) => {
         successCount,
         failCount,
         successRate: totalRequests > 0 ? Math.round((successCount / totalRequests) * 100) : 100,
-        totalCredits: creditsRemaining + totalCreditsUsed,
-        totalUsedCredits: totalCreditsUsed,
-        creditsRemaining: Math.max(0, creditsRemaining - totalCreditsUsed),
+        totalCredits: planLimit,
+        totalUsedCredits: allTimeUsed,
+        creditsRemaining,
         recentRequests: recentRequests.map(r => ({
           requestId: r.requestId,
           url: r.url,

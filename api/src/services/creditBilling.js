@@ -32,6 +32,24 @@ const CREDIT_TABLE = {
 };
 
 /**
+ * Plan-based credit limits — single source of truth for credit ceilings.
+ */
+const PLAN_CREDIT_LIMITS = {
+  free: 1000,
+  pro: 50000,
+  enterprise: 100000,
+};
+
+/**
+ * Get the credit limit for a user plan.
+ * @param {string} plan - The user's plan (free, pro, enterprise)
+ * @returns {number} Total credit allocation for the plan
+ */
+function getPlanLimit(plan) {
+  return PLAN_CREDIT_LIMITS[plan] || PLAN_CREDIT_LIMITS.free;
+}
+
+/**
  * Calculate estimated credits for a request.
  * @param {Object} params - Request parameters
  * @param {string} endpoint - Request endpoint path
@@ -329,4 +347,4 @@ async function _chargeSequential(apiKeyId, requestId, credits, isFailed, userId,
   return credits;
 }
 
-module.exports = { calculateCredits, chargeCredits, validateCredits, CREDIT_TABLE };
+module.exports = { calculateCredits, chargeCredits, validateCredits, CREDIT_TABLE, PLAN_CREDIT_LIMITS, getPlanLimit };

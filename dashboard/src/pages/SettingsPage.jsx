@@ -45,8 +45,18 @@ export default function SettingsPage() {
   const { data } = useQuery({
     queryKey: ['account'],
     queryFn: () => api.get('/account'),
+    refetchInterval: 15000,
   });
   const account = data?.data || {};
+
+  // Fetch usage data for accurate credit info
+  const { data: usageData } = useQuery({
+    queryKey: ['usage15-settings'],
+    queryFn: () => api.get('/account/usage?days=15'),
+    refetchInterval: 15000,
+  });
+  const usage = usageData?.data || {};
+  const currentApiKey = usage.currentApiKey || {};
 
   // Populate profile fields from account data
   useEffect(() => {
@@ -207,7 +217,10 @@ export default function SettingsPage() {
           <div className="form-group">
             <label className="form-label">Credits</label>
             <div style={{ fontWeight: 700, marginTop: 6, fontSize: 18, color: 'var(--sf-success)' }}>
-              {(account.user?.credits || 1000).toLocaleString()}
+              {(account.user?.credits ?? 0).toLocaleString()}
+              <span style={{ fontSize: 13, fontWeight: 400, color: 'var(--sf-text-muted)', marginLeft: 4 }}>
+                / {(account.user?.creditLimit ?? 1000).toLocaleString()}
+              </span>
             </div>
           </div>
           <div className="form-group">
@@ -353,7 +366,7 @@ export default function SettingsPage() {
                   <tr key={k._id || i}>
                     <td><code style={{ color: 'var(--sf-primary-light)', fontSize: 13 }}>{k.keyPrefix}...</code></td>
                     <td style={{ fontWeight: 500 }}>{k.name}</td>
-                    <td>{(k.credits || 0).toLocaleString()}</td>
+                    <td>{(account.user?.creditLimit || 1000).toLocaleString()}</td>
                     <td>{(k.creditsUsed || 0).toLocaleString()}</td>
                     <td>{k.rateLimit}/min</td>
                     <td>

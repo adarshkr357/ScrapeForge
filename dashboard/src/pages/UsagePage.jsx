@@ -43,8 +43,8 @@ export default function UsagePage() {
 
   const chartData = buildChartData();
 
-  // Table uses descending order (newest first)
-  const tableData = [...chartData].reverse();
+  // Table uses descending order (newest first), only show days with actual activity
+  const tableData = [...chartData].reverse().filter(d => d.requests > 0 || d.credits > 0);
 
   const usedPct = apiKey.credits > 0
     ? Math.round((apiKey.creditsUsed / apiKey.credits) * 100)
@@ -94,7 +94,7 @@ export default function UsagePage() {
             <span style={{ fontWeight: 600, fontSize: 15 }}>API Credit Limit</span>
           </div>
           <span style={{ fontSize: 14, color: 'var(--sf-text-secondary)' }}>
-            {(apiKey.creditsUsed || 0).toLocaleString()} / {(apiKey.credits || 10000).toLocaleString()} credits used
+            {(apiKey.creditsUsed || 0).toLocaleString()} / {(apiKey.credits || 0).toLocaleString()} credits used
           </span>
         </div>
         <div style={{ height: 8, background: 'var(--sf-bg-elevated)', borderRadius: 9999, overflow: 'hidden', border: '1px solid var(--sf-border)' }}>
@@ -107,7 +107,7 @@ export default function UsagePage() {
           }} />
         </div>
         <div style={{ fontSize: 12, color: 'var(--sf-text-muted)', marginTop: 6 }}>
-          {(apiKey.remaining || (apiKey.credits || 10000) - (apiKey.creditsUsed || 0)).toLocaleString()} credits remaining ({usedPct || 0}% used)
+          {(apiKey.remaining ?? 0).toLocaleString()} credits remaining ({usedPct || 0}% used)
         </div>
       </div>
 
@@ -118,7 +118,7 @@ export default function UsagePage() {
             <TrendingUp size={18} color="var(--sf-success)" />
           </div>
           <div className="stat-value" style={{ color: 'var(--sf-success)' }}>
-            {(apiKey.remaining ?? ((apiKey.credits || 10000) - (apiKey.creditsUsed || 0))).toLocaleString()}
+            {(apiKey.remaining ?? 0).toLocaleString()}
           </div>
           <div className="stat-label">Credits Remaining</div>
         </div>
@@ -188,7 +188,7 @@ export default function UsagePage() {
                   <CartesianGrid strokeDasharray="3 3" stroke={colors.grid} />
                   <XAxis dataKey="date" stroke={colors.text} fontSize={11} tick={{ fill: colors.text }} />
                   <YAxis stroke={colors.text} fontSize={11} allowDecimals={false} tick={{ fill: colors.text }} />
-                  <Tooltip {...tooltipStyle} />
+                  <Tooltip {...tooltipStyle} cursor={{ fill: 'transparent' }} />
                   <Legend wrapperStyle={{ color: colors.legendColor, fontSize: 12 }} />
                   <Bar dataKey="success" fill={colors.success} name="Success" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="failed" fill={colors.danger} name="Failed" radius={[4, 4, 0, 0]} />
@@ -199,10 +199,10 @@ export default function UsagePage() {
         </div>
       </div>
 
-      {/* Daily breakdown table */}
-      {tableData.length > 0 && (
-        <div className="glass-card-static">
-          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Daily Breakdown</h3>
+      {/* Daily breakdown table — only show days with actual data */}
+      <div className="glass-card-static">
+        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Daily Breakdown</h3>
+        {tableData.length > 0 ? (
           <div className="table-wrapper">
             <table className="data-table">
               <thead>
@@ -228,8 +228,12 @@ export default function UsagePage() {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+        ) : (
+          <div style={{ textAlign: 'center', color: 'var(--sf-text-muted)', padding: '40px 0' }}>
+            No usage data yet. Start scraping to see daily breakdowns.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
