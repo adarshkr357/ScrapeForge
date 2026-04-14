@@ -4,9 +4,10 @@ import toast from 'react-hot-toast';
 import { Play, Loader2, Copy, Settings2, Code, Globe, Info, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const OUTPUT_FORMATS = ['html', 'markdown', 'json'];
+const OUTPUT_FORMATS = ['html', 'markdown', 'json', 'screenshot', 'pdf'];
 const STEALTH_MODES = ['none', 'basic', 'standard', 'advanced', 'maximum', 'adaptive'];
 const SCRAPER_TYPES = ['auto', 'http', 'browser', 'node-browser'];
+const SCREENSHOT_FORMATS = ['png', 'jpeg', 'webp'];
 
 const STEALTH_INFO = {
   none: 'Raw HTTP request. No fingerprinting. Fast but easily blocked.',
@@ -54,8 +55,16 @@ export default function ScrapePlayground() {
   const [jsonResponse, setJsonResponse] = useState(false);
   const [originalStatus, setOriginalStatus] = useState(false);
 
+  // Tools specific config
+  const [fullPage, setFullPage] = useState(true);
+  const [ssFormat, setSsFormat] = useState('png');
+  const [ssQuality, setSsQuality] = useState(90);
+  const [viewportWidth, setViewportWidth] = useState(1920);
+  const [viewportHeight, setViewportHeight] = useState(1080);
+
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
   const [latency, setLatency] = useState(0);
   const [activeTab, setActiveTab] = useState('config');
   const [codeLang, setCodeLang] = useState('curl');
@@ -75,38 +84,104 @@ export default function ScrapePlayground() {
     if (cssExtractor) {
       try { JSON.parse(cssExtractor); body.css_extractor = cssExtractor; } catch(_) {}
     }
+    
+    // Tools logic
+    if (outputFormat === 'screenshot') {
+      body.scraper_type = 'node-browser'; // Must be browser
+      body.screenshot = { enabled: true, full_page: fullPage, format: ssFormat };
+      if (ssFormat === 'jpeg' || ssFormat === 'webp') body.screenshot.quality = ssQuality;
+      body.viewport = { width: viewportWidth, height: viewportHeight };
+    }
+    if (outputFormat === 'pdf') {
+      body.scraper_type = 'node-browser';
+      body.pdf = true;
+    }
     return body;
+  };
+
+  // Helper to find base64 fields in various response shapes
+  const findField = (obj, field) => {
+    if (!obj) return null;
+    if (obj[field]) return obj[field];
+    if (obj.data?.[field]) return obj.data[field];
+    return null;
   };
 
   const handleScrape = async () => {
     if (!url) return toast.error('Enter a URL');
     setLoading(true);
     setResult(null);
+    setPdfBlobUrl(null);
     const start = Date.now();
     try {
       const body = generateBody();
       let res = await api.post('/scrape', body);
       
+      // Poll if async
       if (res.status === 'processing' || res.status === 'queued') {
-        const pollUrl = res.poll_url;
-        if (pollUrl) {
-          while (res.status === 'processing' || res.status === 'queued') {
-            await new Promise(r => setTimeout(r, 2000));
-            try {
-              const p = await api.get(pollUrl.replace('/api/v1', ''));
-              res = p.data ? p.data : p;
-            } catch (pollErr) { throw new Error(pollErr.message); }
-          }
+        const pollUrl = res.poll_url || `/scrape/${res.requestId}`;
+        const cleanPath = pollUrl.replace(/^\/api\/v1/, '');
+        for (let i = 0; i < 60; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          try {
+            const p = await api.get(cleanPath);
+            if (p.status === 'completed' || p.status === 'failed' || (p.success !== undefined && p.status !== 'processing' && p.status !== 'queued')) {
+              res = p;
+              break;
+            }
+          } catch (pollErr) { throw new Error(pollErr.message); }
         }
       }
+
       setLatency(Date.now() - start);
       setResult(res);
       toast.success(`Scraped in ${Date.now() - start}ms`);
+
+      // If PDF, generate blob URL to avoid CSP issues with data URIs
+      const pdfB64 = findField(res, 'pdfBase64');
+      if (pdfB64) {
+        try {
+          const byteCharacters = atob(pdfB64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'application/pdf' });
+          setPdfBlobUrl(URL.createObjectURL(blob));
+        } catch (e) {
+          console.error("PDF Blob generation failed", e);
+        }
+      }
+
     } catch (err) {
       toast.error(err.message);
       setResult({ success: false, error: err.message });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownload = (base64, mimeType, extension) => {
+    try {
+      const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+      const byteCharacters = atob(cleanBase64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `scrapeforge_${Date.now()}.${extension}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch(e) {
+      toast.error('Failed to download file');
     }
   };
 
@@ -324,6 +399,52 @@ Console.WriteLine(result);`;
                 )}
               </div>
 
+              {/* Tools Specific Overrides */}
+              {outputFormat === 'screenshot' && (
+                <div className="form-group" style={{ padding: 12, backgroundColor: 'rgba(236,72,153,0.1)', borderRadius: 8, border: '1px solid rgba(236,72,153,0.2)' }}>
+                  <label className="form-label" style={{ color: '#ec4899', marginBottom: 12 }}>📸 Screenshot Settings (Forces Node Browser)</label>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+                    <div>
+                      <label className="checkbox-label" style={{ marginBottom: 8, marginTop: 4 }}>
+                        <input type="checkbox" checked={fullPage} onChange={e => setFullPage(e.target.checked)} />
+                        <span>Full Page Capture</span>
+                      </label>
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: 11, marginBottom: 4 }}>Format</label>
+                      <select className="input" style={{ padding: '4px 8px', fontSize: 12 }} value={ssFormat} onChange={e => setSsFormat(e.target.value)}>
+                        {SCREENSHOT_FORMATS.map(f => <option key={f} value={f}>{f.toUpperCase()}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                    <div>
+                      <label className="form-label" style={{ fontSize: 11, marginBottom: 4 }}>Width</label>
+                      <input type="number" className="input" style={{ padding: '4px 8px', fontSize: 12 }} value={viewportWidth} onChange={e => setViewportWidth(Number(e.target.value))} />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ fontSize: 11, marginBottom: 4 }}>Height</label>
+                      <input type="number" className="input" style={{ padding: '4px 8px', fontSize: 12 }} value={viewportHeight} onChange={e => setViewportHeight(Number(e.target.value))} />
+                    </div>
+                    {(ssFormat === 'jpeg' || ssFormat === 'webp') && (
+                      <div>
+                        <label className="form-label" style={{ fontSize: 11, marginBottom: 4 }}>Quality</label>
+                        <input type="number" className="input" style={{ padding: '4px 8px', fontSize: 12 }} value={ssQuality} onChange={e => setSsQuality(Number(e.target.value))} min={10} max={100} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {outputFormat === 'pdf' && (
+                <div className="form-group" style={{ padding: 12, backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: 8, border: '1px solid rgba(239,68,68,0.2)' }}>
+                  <label className="form-label" style={{ color: '#ef4444', marginBottom: 4 }}>📄 PDF Export (Forces Node Browser)</label>
+                  <p style={{ fontSize: 12, color: 'var(--sf-text-muted)', margin: 0 }}>Generates a high-quality print-media rendered PDF of the target.</p>
+                </div>
+              )}
+
               {/* Stealth */}
               <div className="form-group">
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -451,19 +572,37 @@ Console.WriteLine(result);`;
             {result && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 {latency > 0 && <span className="badge badge-info">{latency}ms</span>}
-                {result.credits_used !== undefined && <span className="badge badge-purple">{result.credits_used} credits</span>}
+                {(result.credits_used ?? result.creditsUsed) !== undefined && <span className="badge badge-purple">{result.credits_used ?? result.creditsUsed} credits</span>}
                 <button className="btn btn-ghost btn-icon"
                   onClick={() => { navigator.clipboard.writeText(JSON.stringify(result, null, 2)); toast.success('Copied'); }}>
                   <Copy size={14} />
                 </button>
+                {outputFormat === 'screenshot' && findField(result, 'screenshotBase64') && (
+                  <button className="btn btn-ghost btn-sm" onClick={() => handleDownload(findField(result, 'screenshotBase64'), `image/${ssFormat}`, ssFormat)}>
+                    Download
+                  </button>
+                )}
+                {outputFormat === 'pdf' && findField(result, 'pdfBase64') && (
+                  <button className="btn btn-ghost btn-sm" onClick={() => handleDownload(findField(result, 'pdfBase64'), 'application/pdf', 'pdf')}>
+                    Download
+                  </button>
+                )}
               </div>
             )}
           </div>
 
           {result ? (
-            <pre className="code-block" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {JSON.stringify(result, null, 2)}
-            </pre>
+            outputFormat === 'screenshot' && findField(result, 'screenshotBase64') ? (
+              <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                <img src={`data:image/${ssFormat};base64,${findField(result, 'screenshotBase64')}`} alt="Screenshot" style={{ maxWidth: '100%', borderRadius: 8, border: '1px solid var(--sf-border)' }} />
+              </div>
+            ) : outputFormat === 'pdf' && findField(result, 'pdfBase64') && pdfBlobUrl ? (
+              <iframe src={pdfBlobUrl} style={{ width: '100%', height: 600, border: 'none', borderRadius: 8 }} title="PDF View" />
+            ) : (
+              <pre className="code-block" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {JSON.stringify(result, null, 2)}
+              </pre>
+            )
           ) : (
             <div className="empty-state">
               <Globe size={48} className="empty-state-icon" style={{ color: 'var(--sf-primary)' }} />

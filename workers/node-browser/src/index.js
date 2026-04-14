@@ -78,9 +78,10 @@ async function processJob(job) {
     }
 
     // Navigate
+    const maxTimeout = Math.min(params.timeout || 30000, 300000); // 300 second absolute limit
     const response = await page.goto(url, {
       waitUntil: 'networkidle',
-      timeout: params.timeout || 30000,
+      timeout: maxTimeout,
     });
 
     // Wait for selector
@@ -135,6 +136,7 @@ async function processJob(job) {
     // PDF
     let pdfBase64 = null;
     if (params.pdf) {
+      await page.emulateMedia({ media: 'screen' });
       pdfBase64 = (await page.pdf({ format: 'A4', printBackground: true })).toString('base64');
     }
 

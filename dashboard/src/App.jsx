@@ -15,6 +15,7 @@ import WebhooksPage from './pages/WebhooksPage';
 import UsageBillingPage from './pages/UsageBillingPage';
 import SettingsPage from './pages/SettingsPage';
 import ApiDocsPage from './pages/ApiDocsPage';
+import ExtractPage from './pages/ExtractPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -45,6 +46,7 @@ export default function App() {
         <Route path="usage-billing" element={<UsageBillingPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="api-docs" element={<ApiDocsPage />} />
+        <Route path="extract" element={<ExtractPage />} />
       </Route>
     </Routes>
   );

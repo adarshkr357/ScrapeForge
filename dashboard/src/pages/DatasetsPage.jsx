@@ -13,6 +13,8 @@ export default function DatasetsPage() {
   const [downloadFormat, setDownloadFormat] = useState('json');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null); // 'selected' | 'all' | null
   const [viewData, setViewData] = useState(null);
+  const [modalViewMode, setModalViewMode] = useState('code');
+  const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
   const [loadingData, setLoadingData] = useState(false);
 
   const { data, isLoading } = useQuery({
@@ -81,6 +83,26 @@ export default function DatasetsPage() {
       });
       if (!response.ok) throw new Error('Failed to load dataset data');
       const json = await response.json();
+      
+      let createdPdfUrl = null;
+      if (Array.isArray(json) && json.length > 0) {
+        const first = json[0];
+        const pdfBase64 = first.pdfBase64 || first.data?.pdfBase64;
+        if (pdfBase64) {
+          try {
+            const byteCharacters = atob(pdfBase64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'application/pdf' });
+            createdPdfUrl = URL.createObjectURL(blob);
+            setPdfBlobUrl(createdPdfUrl);
+          } catch(e) {}
+        }
+      }
+
       setViewData({ id: datasetId, loading: false, data: json });
     } catch (err) {
       toast.error(err.message || 'Failed to load dataset');
@@ -194,7 +216,7 @@ export default function DatasetsPage() {
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button className="btn btn-ghost btn-sm" title="View Data"
-                        onClick={() => handleViewData(d.datasetId)}
+                        onClick={() => { handleViewData(d.datasetId); setModalViewMode('code'); setPdfBlobUrl(null); }}
                         style={{ padding: '4px 8px', color: 'var(--sf-primary)' }}>
                         <Eye size={14} />
                       </button>
@@ -263,18 +285,46 @@ export default function DatasetsPage() {
         <div className="modal-backdrop" onClick={() => setViewData(null)}>
           <div className="modal" style={{ maxWidth: 800, width: '90%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Dataset Content - {viewData.id}</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                <h3 style={{ margin: 0 }}>Dataset Content - {viewData.id}</h3>
+                <div className="tabs" style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border)', padding: 2, borderRadius: 6, marginRight: 16 }}>
+                  <button className={`tab ${modalViewMode === 'code' ? 'active' : ''}`} style={{ padding: '2px 12px', fontSize: 11 }} onClick={() => setModalViewMode('code')}>Code</button>
+                  <button className={`tab ${modalViewMode === 'preview' ? 'active' : ''}`} style={{ padding: '2px 12px', fontSize: 11 }} onClick={() => setModalViewMode('preview')}>Visual Preview</button>
+                </div>
+              </div>
               <button className="modal-close" onClick={() => setViewData(null)}><X size={16} /></button>
             </div>
-            <div className="modal-body" style={{ flex: 1, overflowY: 'auto', background: 'var(--sf-code-bg, var(--sf-bg-primary))', borderRadius: 8, padding: 16, margin: '0 24px' }}>
+            
+            <div className="modal-body" style={{ flex: 1, overflowY: 'auto', background: modalViewMode === 'code' ? 'var(--sf-code-bg, var(--sf-bg-primary))' : 'var(--sf-bg-elevated)', borderRadius: 8, padding: 16, margin: '0 24px' }}>
               {viewData.loading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 200, color: 'var(--sf-text-muted)' }}>
                   <Loader2 className="animate-spin" size={24} style={{ marginRight: 10 }} /> Loading data...
                 </div>
-              ) : (
+              ) : modalViewMode === 'code' ? (
                 <pre style={{ margin: 0, color: 'var(--sf-primary-light)', fontSize: 13, fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
                   {JSON.stringify(viewData.data, null, 2)}
                 </pre>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {(() => {
+                    const first = Array.isArray(viewData.data) ? viewData.data[0] : viewData.data;
+                    if (!first) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--sf-text-muted)' }}>Empty dataset.</div>;
+                    
+                    const screenshot = first.screenshotBase64 || first.data?.screenshotBase64;
+                    const html = first.html || first.data?.html || first.rawHtml || first.data?.rawHtml;
+                    const hasPdf = first.pdfBase64 || first.data?.pdfBase64;
+
+                    if (screenshot) {
+                      return <div style={{ display: 'flex', justifyContent: 'center' }}><img src={`data:image/png;base64,${screenshot}`} style={{ maxWidth: '100%', borderRadius: 4 }} alt="Screenshot" /></div>;
+                    } else if (hasPdf && pdfBlobUrl) {
+                      return <iframe src={pdfBlobUrl} style={{ width: '100%', height: 500, border: 'none', borderRadius: 8 }} title="PDF" />;
+                    } else if (html) {
+                      return <iframe srcDoc={html} style={{ width: '100%', height: 500, border: 'none', borderRadius: 8, background: '#fff' }} title="HTML Preview" />;
+                    } else {
+                      return <div style={{ padding: 40, textAlign: 'center', color: 'var(--sf-text-muted)' }}>No visual data (HTML, PDF, or Screenshot) found in the first item.</div>;
+                    }
+                  })()}
+                </div>
               )}
             </div>
             <div className="modal-footer" style={{ marginTop: 20 }}>

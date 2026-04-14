@@ -9,7 +9,7 @@ const { creditCheckMiddleware } = require('../middleware/creditCheck');
 const { calculateCredits } = require('../services/creditBilling');
 
 // ── POST /extract — Extraction from raw HTML ──
-router.post('/', creditCheckMiddleware, async (req, res) => {
+router.post('/extract', creditCheckMiddleware, async (req, res) => {
   try {
     const { html, url, extraction_rules, xpath_rules, regex_rules } = req.body;
 

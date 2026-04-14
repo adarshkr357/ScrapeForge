@@ -57,9 +57,11 @@ export default function SerpSearchPage() {
   const [engine, setEngine] = useState('duckduckgo');
   const [resultType, setResultType] = useState('web');
   const [numResults, setNumResults] = useState(10);
+  const [isCustomNumResults, setIsCustomNumResults] = useState(false);
   const [country, setCountry] = useState('us');
   const [language, setLanguage] = useState('en');
   const [page, setPage] = useState(1);
+  const [isCustomPage, setIsCustomPage] = useState(false);
   const [parseResults, setParseResults] = useState(true);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
@@ -224,9 +226,36 @@ export default function SerpSearchPage() {
         <div className="form-row" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
           <div className="form-group">
             <label className="form-label">Results Count</label>
-            <select className="input" value={numResults} onChange={e => setNumResults(parseInt(e.target.value))}>
-              {[5, 10, 20, 30, 50, 100].map(n => <option key={n} value={n}>{n} results</option>)}
-            </select>
+            {!isCustomNumResults ? (
+              <select className="input" value={numResults} onChange={e => {
+                const val = e.target.value;
+                if (val === 'custom') {
+                  setIsCustomNumResults(true);
+                } else {
+                  setNumResults(parseInt(val));
+                }
+              }}>
+                {[1, 5, 10, 15, 20].map(n => <option key={n} value={n}>{n} results</option>)}
+                <option value="custom">Custom...</option>
+              </select>
+            ) : (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input 
+                  type="number" 
+                  className="input" 
+                  min={1} 
+                  max={20} 
+                  value={numResults} 
+                  onChange={e => {
+                    let v = parseInt(e.target.value) || 1;
+                    if (v > 20) v = 20;
+                    setNumResults(v);
+                  }}
+                  style={{ width: '80px' }} 
+                />
+                <button className="btn btn-secondary" onClick={() => { setIsCustomNumResults(false); setNumResults(10); }} style={{ padding: '0 8px' }}>X</button>
+              </div>
+            )}
           </div>
           <div className="form-group">
             <label className="form-label">Country</label>
@@ -242,9 +271,36 @@ export default function SerpSearchPage() {
           </div>
           <div className="form-group">
             <label className="form-label">Page</label>
-            <select className="input" value={page} onChange={e => setPage(parseInt(e.target.value))}>
-              {[1,2,3,4,5].map(p => <option key={p} value={p}>Page {p}</option>)}
-            </select>
+            {!isCustomPage ? (
+              <select className="input" value={page} onChange={e => {
+                const val = e.target.value;
+                if (val === 'custom') {
+                  setIsCustomPage(true);
+                } else {
+                  setPage(parseInt(val));
+                }
+              }}>
+                {[1, 5, 10, 15, 20].map(p => <option key={p} value={p}>Page {p}</option>)}
+                <option value="custom">Custom...</option>
+              </select>
+            ) : (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input 
+                  type="number" 
+                  className="input" 
+                  min={1} 
+                  max={20} 
+                  value={page} 
+                  onChange={e => {
+                    let v = parseInt(e.target.value) || 1;
+                    if (v > 20) v = 20;
+                    setPage(v);
+                  }}
+                  style={{ width: '80px' }} 
+                />
+                <button className="btn btn-secondary" onClick={() => { setIsCustomPage(false); setPage(1); }} style={{ padding: '0 8px' }}>X</button>
+              </div>
+            )}
           </div>
           <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
             <label className="checkbox-label">

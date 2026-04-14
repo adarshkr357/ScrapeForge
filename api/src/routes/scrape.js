@@ -63,7 +63,7 @@ router.post('/', validate('POST /scrape'), ssrfGuardMiddleware, creditCheckMiddl
         await targetQueue.add('scrape', jobData, {
             jobId: requestId,
             priority: routing.stealthLevel >= 3 ? 1 : 5,  // High stealth = higher priority
-            timeout: params.timeout || 30000,
+            timeout: Math.min(params.timeout || 30000, 300000), // Max 300s
         });
         // Immediately close queue to prevent connection leaks
         await targetQueue.close();
@@ -80,7 +80,7 @@ router.post('/', validate('POST /scrape'), ssrfGuardMiddleware, creditCheckMiddl
         }
 
         // 6. Synchronous: wait for result (up to timeout)
-        const timeout = Math.min(params.timeout || 30000, 120000);
+        const timeout = Math.min(params.timeout || 30000, 300000);
         let result = await waitForResult(requestId, timeout);
         let currentRouting = routing;
         const maxEscalations = params.auto_escalate !== false ? 2 : 0; // Auto-escalate by default
@@ -128,6 +128,7 @@ router.post('/', validate('POST /scrape'), ssrfGuardMiddleware, creditCheckMiddl
             }, {
                 jobId: retryRequestId,
                 priority: 1,
+                timeout: Math.min(params.timeout || 30000, 300000),
             });
             await retryQueue.close();
 
@@ -266,12 +267,26 @@ router.post('/', validate('POST /scrape'), ssrfGuardMiddleware, creditCheckMiddl
             });
         }
 
-        // Still processing
+        // Still processing but sync path timed out
+        if (!params.webhook_url) {
+            await Request.findOneAndUpdate(
+                { requestId },
+                { $set: { status: 'failed', errorMessage: 'Request timed out after maximum allowed duration.', completedAt: new Date() } }
+            );
+            return res.status(408).json({
+                success: false,
+                error: 'Request timed out',
+                requestId,
+                status: 'failed',
+                credits_used: 0
+            });
+        }
+
         res.status(202).json({
             success: true,
             requestId,
             status: 'processing',
-            message: 'Request is still processing.',
+            message: 'Request is still processing in background.',
             poll_url: `/api/v1/scrape/${requestId}`,
         });
     } catch (err) {

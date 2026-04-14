@@ -65,15 +65,18 @@ function startQueueListeners() {
       const originalRequestId = jobId.split('_esc')[0];
       const reqDocCheck = await Request.findOne({ requestId: originalRequestId }).lean();
 
-      // If it's a synchronous scrape (managed by scrape.js), let scrape.js handle everything
-      // BUT: always handle crawl_ and batch_ jobs here
+      // If it's a synchronous scrape that was already handled by scrape.js, skip
+      // BUT: always handle crawl_, batch_, serp_ jobs here
+      // AND: handle any req_ job whose status is still queued/processing (sync path timed out)
       if (
         reqDocCheck &&
         !reqDocCheck.webhookUrl &&
         !reqDocCheck.isBatch &&
         !originalRequestId.startsWith('crawl_') &&
         !originalRequestId.startsWith('batch_') &&
-        !originalRequestId.startsWith('serp_')
+        !originalRequestId.startsWith('serp_') &&
+        reqDocCheck.status !== 'queued' &&
+        reqDocCheck.status !== 'processing'
       ) {
         return;
       }

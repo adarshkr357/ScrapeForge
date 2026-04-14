@@ -13,7 +13,7 @@ import random
 import logging
 import urllib.parse
 from queue_consumer import QueueConsumer
-import httpx
+from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
 from duckduckgo_search import DDGS
 
@@ -219,19 +219,54 @@ class SERPWorker:
             params['tbm'] = 'shop'
 
         def attempt():
+            try:
+                # ── Prefer search-engines package ──
+                import search_engines
+                engine = search_engines.Google()
+                engine.ignore_robor_txt = True
+                sr = engine.search(query, pages=page)
+                
+                res = sr.results()
+                if res and len(res) > 0:
+                    results = {
+                        'organic_results': [],
+                        'featured_snippet': None,
+                        'people_also_ask': [],
+                        'related_searches': [],
+                        'total_results': len(res)
+                    }
+                    position = 1
+                    for item in res:
+                        results['organic_results'].append({
+                            'position': position,
+                            'title': item['title'],
+                            'url': item['link'],
+                            'snippet': item['text'],
+                            'source': 'google'
+                        })
+                        position += 1
+                    return results
+            except Exception as e:
+                logger.warning(f"Google search_engines pkg failed: {e}, falling back to BeautifulSoup")
+
+            # ── Fallback: Manual BeautifulSoup ──
             headers = get_headers()
             headers['Referer'] = 'https://www.google.com/'
             headers['Cookie'] = 'CONSENT=YES+cb.20210720-07-p0.en+FX+{}'.format(random.randint(100, 999))
 
-            time.sleep(random.uniform(0.5, 1.5))
-
-            with httpx.Client(
-                timeout=25,
-                follow_redirects=True,
-                http2=True,
-                headers=headers,
-            ) as client:
-                resp = client.get('https://www.google.com/search', params=params)
+            from curl_cffi import requests as cffi_requests
+            time.sleep(random.uniform(0.5, 2.0))
+            
+            try:
+                resp = cffi_requests.get(
+                    'https://www.google.com/search', 
+                    params=params, 
+                    headers=headers, 
+                    impersonate="chrome110", 
+                    timeout=25
+                )
+            except Exception as e:
+                raise Exception(f"Google request failed: {e}")
 
             if resp.status_code != 200:
                 raise Exception(f"Google returned HTTP {resp.status_code}")
@@ -246,16 +281,20 @@ class SERPWorker:
             }
 
             # Featured snippet
-            fs = soup.select_one('.hgKElc, .xpdopen .LGOjhe, .xpdopen .u6YpT')
+            fs = soup.select_one('.hgKElc, .xpdopen .LGOjhe, .IZ6rdc, .xpdopen .u6YpT')
             if fs:
                 results['featured_snippet'] = fs.get_text(strip=True)
 
             position = 1
             seen_urls = set()
-            for div in soup.select('div.g, div.Gx5Zad'):
+            # Multiple container selectors for resilience
+            containers = soup.select('div.g, div.Gx5Zad, div.MjjYud div.g, div[data-hveid] div.g')
+            if not containers:
+                containers = soup.select('div[data-sokoban-container], div.tF2Cxc')
+            for div in containers:
                 title_el = div.select_one('h3')
                 link_el = div.select_one('a[href^="http"], a[href^="/url"]')
-                snippet_el = div.select_one('div.VwiC3b, span.aCOpRe, div[data-sncf] span')
+                snippet_el = div.select_one('div.VwiC3b, span.aCOpRe, div[data-sncf] span, div[style="-webkit-line-clamp"]')
 
                 if not (title_el and link_el):
                     continue
@@ -282,13 +321,18 @@ class SERPWorker:
                 raise Exception("Google returned 0 results (likely blocked)")
 
             # People Also Ask
-            for paa in soup.select('div.related-question-pair, .xpc .JibNPf'):
-                q = paa.select_one('.JCzEY, span[role="heading"]')
+            for paa in soup.select('div.related-question-pair, .xpc .JibNPf, div[data-q]'):
+                q = paa.select_one('.JCzEY, span[role="heading"], .CSkcDe')
+                if not q:
+                    q_attr = paa.get('data-q')
+                    if q_attr:
+                        results['people_also_ask'].append(q_attr)
+                        continue
                 if q:
                     results['people_also_ask'].append(q.get_text(strip=True))
 
             # Related searches
-            for related in soup.select('div.s75CSd a, a.k8XOCe, p.DBM1Twe a'):
+            for related in soup.select('div.s75CSd a, a.k8XOCe, p.DBM1Twe a, a.F9GHHd'):
                 text = related.get_text(strip=True)
                 if text and len(text) > 2:
                     results['related_searches'].append(text)
@@ -311,12 +355,45 @@ class SERPWorker:
             params['qft'] = '+filterui:scenario-NewsIndex'
 
         def attempt():
+            try:
+                # ── Prefer search-engines package ──
+                import search_engines
+                engine = search_engines.Bing()
+                engine.ignore_robor_txt = True
+                sr = engine.search(query, pages=page)
+                
+                res = sr.results()
+                if res and len(res) > 0:
+                    results = {'organic_results': [], 'related_searches': [], 'total_results': len(res)}
+                    position = 1
+                    for item in res:
+                        results['organic_results'].append({
+                            'position': position,
+                            'title': item['title'],
+                            'url': item['link'],
+                            'snippet': item['text'],
+                            'source': 'bing'
+                        })
+                        position += 1
+                    return results
+            except Exception as e:
+                logger.warning(f"Bing search_engines pkg failed: {e}, falling back to BeautifulSoup")
+
+            # ── Fallback: Manual BeautifulSoup ──
             headers = get_headers()
             headers['Referer'] = 'https://www.bing.com/'
-            time.sleep(random.uniform(0.3, 0.8))
-
-            with httpx.Client(timeout=20, follow_redirects=True, http2=True, headers=headers) as client:
-                resp = client.get('https://www.bing.com/search', params=params)
+            from curl_cffi import requests as cffi_requests
+            time.sleep(random.uniform(0.3, 1.0))
+            try:
+                resp = cffi_requests.get(
+                    'https://www.bing.com/search', 
+                    params=params, 
+                    headers=headers, 
+                    impersonate="chrome110", 
+                    timeout=20
+                )
+            except Exception as e:
+                raise Exception(f"Bing request failed: {e}")
 
             if resp.status_code != 200:
                 raise Exception(f"Bing returned HTTP {resp.status_code}")
@@ -325,9 +402,14 @@ class SERPWorker:
             results = {'organic_results': [], 'related_searches': []}
             position = 1
 
-            for li in soup.select('li.b_algo'):
-                title_el = li.select_one('h2 a')
-                snippet_el = li.select_one('div.b_caption p, .b_algoSlug')
+            # Primary and fallback selectors
+            items = soup.select('li.b_algo')
+            if not items:
+                items = soup.select('ol#b_results > li.b_algo, .b_ans .b_lBottom')
+
+            for li in items:
+                title_el = li.select_one('h2 a, h2 > a')
+                snippet_el = li.select_one('div.b_caption p, .b_algoSlug, p.b_lineclamp2, .b_paractl')
                 url = title_el.get('href', '') if title_el else ''
 
                 if title_el and url.startswith('http'):
@@ -344,7 +426,7 @@ class SERPWorker:
                 raise Exception("Bing returned 0 results (possibly blocked)")
 
             # Related
-            for r in soup.select('.b_rs a, .b_no a'):
+            for r in soup.select('.b_rs a, .b_no a, ul.b_vList a'):
                 text = r.get_text(strip=True)
                 if text:
                     results['related_searches'].append(text)
@@ -363,8 +445,17 @@ class SERPWorker:
             headers = get_headers()
             headers['Referer'] = 'https://search.yahoo.com/'
 
-            with httpx.Client(timeout=20, follow_redirects=True, http2=True, headers=headers) as client:
-                resp = client.get('https://search.yahoo.com/search', params=params)
+            from curl_cffi import requests as cffi_requests
+            try:
+                resp = cffi_requests.get(
+                    'https://search.yahoo.com/search', 
+                    params=params, 
+                    headers=headers, 
+                    impersonate="chrome110", 
+                    timeout=20
+                )
+            except Exception as e:
+                raise Exception(f"Yahoo request failed: {e}")
 
             if resp.status_code != 200:
                 raise Exception(f"Yahoo returned HTTP {resp.status_code}")
@@ -373,18 +464,36 @@ class SERPWorker:
             results = {'organic_results': []}
             position = 1
 
-            for div in soup.select('div.dd.algo, div[data-pos]'):
-                title_el = div.select_one('h3 a, a.mb-10')
-                snippet_el = div.select_one('.compText, p')
+            # Multiple container selectors
+            containers = soup.select('div.dd.algo, div.algo, div[data-pos], li.ov-a')
+            if not containers:
+                containers = soup.select('div.Sr, .searchCenterMiddle li')
+
+            for div in containers:
+                title_el = div.select_one('h3 a, a.d-ib, h3.title a, a[href^="http"]')
+                snippet_el = div.select_one('.compText, p, .fc-falcon, div.compText p')
                 if not title_el:
                     continue
                 raw_url = title_el.get('href', '')
-                if '/bc/yahoo.com' in raw_url:
+                # Yahoo redirects through RU links
+                if '/RU=' in raw_url:
+                    try:
+                        import re
+                        match = re.search(r'/RU=([^/]+)/', raw_url)
+                        if match:
+                            raw_url = urllib.parse.unquote(match.group(1))
+                    except Exception:
+                        pass
+                elif '/bc/yahoo.com' in raw_url:
                     try:
                         parsed = urllib.parse.urlparse(raw_url)
                         raw_url = urllib.parse.parse_qs(parsed.query).get('dest', [raw_url])[0]
                     except Exception:
                         pass
+
+                if not raw_url.startswith('http'):
+                    continue
+
                 results['organic_results'].append({
                     'position': position,
                     'title': title_el.get_text(strip=True),
@@ -410,9 +519,18 @@ class SERPWorker:
         def attempt():
             headers = get_headers()
             headers['Referer'] = 'https://yandex.com/'
-
-            with httpx.Client(timeout=20, follow_redirects=True, headers=headers) as client:
-                resp = client.get('https://yandex.com/search/', params=params)
+            from curl_cffi import requests as cffi_requests
+            time.sleep(random.uniform(0.5, 1.5))
+            try:
+                resp = cffi_requests.get(
+                    'https://yandex.com/search/', 
+                    params=params, 
+                    headers=headers, 
+                    impersonate="chrome110", 
+                    timeout=20
+                )
+            except Exception as e:
+                raise Exception(f"Yandex request failed: {e}")
 
             if resp.status_code != 200:
                 raise Exception(f"Yandex returned HTTP {resp.status_code}")
@@ -421,9 +539,14 @@ class SERPWorker:
             results = {'organic_results': []}
             position = 1
 
-            for div in soup.select('li.serp-item, div.Organic'):
-                title_el = div.select_one('h2 a, .OrganicTitle-Link')
-                snippet_el = div.select_one('.OrganicTextContentSpan, .TextContainer')
+            # Multiple container selectors for modern Yandex
+            containers = soup.select('li.serp-item, div.Organic, div[data-cid]')
+            if not containers:
+                containers = soup.select('.serp-list > .serp-item, .content__left .serp-item')
+
+            for div in containers:
+                title_el = div.select_one('h2 a, .OrganicTitle-Link, a.organic__url, .organic__url-text')
+                snippet_el = div.select_one('.OrganicTextContentSpan, .TextContainer, .organic__content-wrapper, .Organic-ContentWrapper span, .text-container')
                 if not title_el:
                     continue
                 url = title_el.get('href', '')
@@ -458,8 +581,17 @@ class SERPWorker:
                 ''.join(random.choices('0123456789ABCDEF', k=32))
             )
 
-            with httpx.Client(timeout=20, follow_redirects=True, headers=headers) as client:
-                resp = client.get('https://www.baidu.com/s', params=params)
+            from curl_cffi import requests as cffi_requests
+            try:
+                resp = cffi_requests.get(
+                    'https://www.baidu.com/s', 
+                    params=params, 
+                    headers=headers, 
+                    impersonate="chrome110", 
+                    timeout=20
+                )
+            except Exception as e:
+                raise Exception(f"Baidu request failed: {e}")
 
             # Handle charset encoding
             text = resp.text
@@ -473,14 +605,21 @@ class SERPWorker:
             results = {'organic_results': []}
             position = 1
 
-            for div in soup.select('div.result, div.c-container'):
-                title_el = div.select_one('h3 a, a[target="_blank"]')
-                snippet_el = div.select_one('.c-abstract, .c-span9')
+            containers = soup.select('div.result, div.c-container, div.result-op')
+            if not containers:
+                containers = soup.select('#content_left > div[id]')
+
+            for div in containers:
+                title_el = div.select_one('h3 a, .c-title a, a.c-title-text, a[target="_blank"]')
+                snippet_el = div.select_one('.c-abstract, .c-span9, .content-right_8Zs40, .c-gap-top-small span')
                 if not title_el:
+                    continue
+                title_text = title_el.get_text(strip=True)
+                if not title_text:
                     continue
                 results['organic_results'].append({
                     'position': position,
-                    'title': title_el.get_text(strip=True),
+                    'title': title_text,
                     'url': title_el.get('href', ''),
                     'snippet': snippet_el.get_text(strip=True) if snippet_el else '',
                     'source': 'baidu',
@@ -503,11 +642,19 @@ class SERPWorker:
         def attempt():
             headers = get_headers()
             headers['Referer'] = 'https://search.naver.com/'
-            # Naver expects Korean locale User-Agent
             headers['Accept-Language'] = 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
 
-            with httpx.Client(timeout=20, follow_redirects=True, headers=headers) as client:
-                resp = client.get('https://search.naver.com/search.naver', params=params)
+            from curl_cffi import requests as cffi_requests
+            try:
+                resp = cffi_requests.get(
+                    'https://search.naver.com/search.naver', 
+                    params=params, 
+                    headers=headers, 
+                    impersonate="chrome110", 
+                    timeout=20
+                )
+            except Exception as e:
+                raise Exception(f"Naver request failed: {e}")
 
             if resp.status_code != 200:
                 raise Exception(f"Naver returned HTTP {resp.status_code}")
@@ -516,22 +663,56 @@ class SERPWorker:
             results = {'organic_results': []}
             position = 1
 
-            for li in soup.select('.lst_total > li, .bx'):
-                title_el = li.select_one('.link_tit, a.api_txt_lines')
-                snippet_el = li.select_one('.dsc_wrap, .api_txt_lines.dsc_txt')
+            # Modern Naver uses multiple layout types
+            # Web results
+            containers = soup.select('.total_wrap, .api_subject_bx, .sp_web .web_top, li.bx')
+            if not containers:
+                containers = soup.select('.lst_total > li, .total_group .total_item')
+
+            for item in containers:
+                title_el = item.select_one('.total_tit a, a.api_txt_lines.total_tit, .news_tit, a.link_tit, a.api_txt_lines')
+                snippet_el = item.select_one('.total_dsc, .api_txt_lines.dsc_txt, .dsc_wrap, .total_group p')
                 if not title_el:
                     continue
                 url = title_el.get('href', '')
                 if not url.startswith('http'):
                     continue
+                title_text = title_el.get_text(strip=True)
+                if not title_text:
+                    continue
                 results['organic_results'].append({
                     'position': position,
-                    'title': title_el.get_text(strip=True),
+                    'title': title_text,
                     'url': url,
                     'snippet': snippet_el.get_text(strip=True) if snippet_el else '',
                     'source': 'naver',
                 })
                 position += 1
+
+            # Fallback: try extracting from embedded JSON in script tags
+            if len(results['organic_results']) == 0:
+                import re
+                scripts = soup.select('script')
+                for script in scripts:
+                    text = script.string or ''
+                    if '"title"' in text and '"url"' in text:
+                        try:
+                            # Try to find JSON arrays with results
+                            matches = re.findall(r'\{"title":"([^"]+)","url":"([^"]+)"', text)
+                            for title, url in matches[:num_results]:
+                                if url.startswith('http'):
+                                    results['organic_results'].append({
+                                        'position': position,
+                                        'title': title,
+                                        'url': url,
+                                        'snippet': '',
+                                        'source': 'naver',
+                                    })
+                                    position += 1
+                        except Exception:
+                            pass
+                    if len(results['organic_results']) > 0:
+                        break
 
             if len(results['organic_results']) == 0:
                 raise Exception("Naver returned 0 results")

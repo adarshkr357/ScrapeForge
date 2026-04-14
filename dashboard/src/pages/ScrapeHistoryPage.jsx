@@ -10,6 +10,8 @@ export default function ScrapeHistoryPage() {
   const [selected, setSelected] = useState(new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [viewModal, setViewModal] = useState(null);
+  const [modalViewMode, setModalViewMode] = useState('code');
+  const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['requests'],
@@ -30,6 +32,20 @@ export default function ScrapeHistoryPage() {
       if (!viewModal?.requestId) return null;
       try {
         const res = await api.get(`/scrape/${viewModal.requestId}`);
+        
+        // Generate PDF blob if exists
+        const pdfBase64 = res.data?.data?.pdfBase64 || res.data?.pdfBase64;
+        if (pdfBase64) {
+          const byteCharacters = atob(pdfBase64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'application/pdf' });
+          setPdfBlobUrl(URL.createObjectURL(blob));
+        }
+
         return res.data;
       } catch (err) {
         return { error: err.message };
@@ -173,7 +189,7 @@ export default function ScrapeHistoryPage() {
                   </td>
                   <td>
                     <button className="btn btn-ghost btn-icon" title="View Response"
-                      onClick={() => setViewModal(r)}
+                      onClick={() => { setViewModal(r); setModalViewMode('code'); setPdfBlobUrl(null); }}
                       style={{ padding: '4px 8px' }}>
                       <Eye size={14} color="var(--sf-primary)" />
                     </button>
@@ -220,13 +236,49 @@ export default function ScrapeHistoryPage() {
 
               {/* Output / Response Details */}
               <div style={{ marginTop: 20 }}>
-                <h4 style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--sf-text-muted)', marginBottom: 8, letterSpacing: '0.05em' }}>Output / Response</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <h4 style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--sf-text-muted)', letterSpacing: '0.05em' }}>Output / Response</h4>
+                  <div className="tabs" style={{ background: 'var(--sf-bg)', border: '1px solid var(--sf-border)', padding: 2, borderRadius: 6 }}>
+                    <button className={`tab ${modalViewMode === 'code' ? 'active' : ''}`} style={{ padding: '2px 12px', fontSize: 11 }} onClick={() => setModalViewMode('code')}>Code</button>
+                    <button className={`tab ${modalViewMode === 'preview' ? 'active' : ''}`} style={{ padding: '2px 12px', fontSize: 11 }} onClick={() => setModalViewMode('preview')}>Visual Preview</button>
+                  </div>
+                </div>
+
                 {viewLoading ? (
                   <div className="skeleton" style={{ height: 120, borderRadius: 8 }}></div>
                 ) : (
-                  <pre className="code-block" style={{ fontSize: 12, maxHeight: 400, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    {JSON.stringify(viewResult || (viewModal.errorMessage ? { error: viewModal.errorMessage } : { message: 'No output recorded' }), null, 2)}
-                  </pre>
+                  modalViewMode === 'code' ? (
+                    <pre className="code-block" style={{ fontSize: 12, maxHeight: 400, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                      {JSON.stringify(viewResult || (viewModal.errorMessage ? { error: viewModal.errorMessage } : { message: 'No output recorded' }), null, 2)}
+                    </pre>
+                  ) : (
+                    <div style={{ background: 'var(--sf-bg-elevated)', borderRadius: 8, border: '1px solid var(--sf-border)', minHeight: 300, display: 'flex', flexDirection: 'column' }}>
+                      {(() => {
+                        const d = viewResult?.data;
+                        const r = viewResult;
+                        // Find screenshot
+                        const ss = d?.screenshotBase64 || r?.screenshotBase64;
+                        // Find PDF
+                        const pdf = d?.pdfBase64 || r?.pdfBase64;
+                        // Find HTML - check if data itself is an HTML string, or nested
+                        const htmlContent = (typeof r === 'string' && r.trim().startsWith('<')) ? r :
+                          (typeof d === 'string' && d.trim().startsWith('<')) ? d
+                          : d?.html || r?.html || d?.rawHtml || r?.rawHtml
+                          || d?.formattedOutput?.html || d?.formattedOutput?.rawHtml
+                          || (typeof d?.formattedOutput === 'string' && d.formattedOutput.trim().startsWith('<') ? d.formattedOutput : null);
+
+                        if (ss) {
+                          return <div style={{ padding: 12, overflow: 'auto', display: 'flex', justifyContent: 'center' }}><img src={`data:image/png;base64,${ss}`} style={{ maxWidth: '100%', borderRadius: 4 }} alt="Screenshot" /></div>;
+                        } else if (pdf && pdfBlobUrl) {
+                          return <iframe src={pdfBlobUrl} style={{ width: '100%', height: 500, border: 'none', borderRadius: 8 }} title="PDF" />;
+                        } else if (htmlContent) {
+                          return <iframe srcDoc={htmlContent} style={{ width: '100%', height: 500, border: 'none', borderRadius: 8, background: '#fff' }} title="HTML Preview" sandbox="allow-same-origin" />;
+                        } else {
+                          return <div style={{ padding: 40, textAlign: 'center', color: 'var(--sf-text-muted)' }}>No visual data (HTML, PDF, or Screenshot) found for this request.</div>;
+                        }
+                      })()}
+                    </div>
+                  )
                 )}
               </div>
             </div>

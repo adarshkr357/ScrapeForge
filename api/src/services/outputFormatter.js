@@ -36,9 +36,9 @@ function formatOutput(data, format, options = {}) {
     case 'links':
       return formatLinks(data);
     case 'screenshot':
-      return { screenshotUrl: data.screenshotUrl || null };
+      return { screenshotUrl: data.screenshotUrl || null, screenshotBase64: data.screenshotBase64 || null };
     case 'pdf':
-      return { pdfUrl: data.pdfUrl || null };
+      return { pdfUrl: data.pdfUrl || null, pdfBase64: data.pdfBase64 || null };
     default:
       return formatJSON(data);
   }
