@@ -105,7 +105,7 @@ function Endpoint({ method, path, desc }) {
   );
 }
 
-export default function DocsPage() {
+export default function ApiDocsPage() {
   const [activeSection, setActiveSection] = useState('auth');
 
   return (
@@ -930,10 +930,10 @@ export default function DocsPage() {
 
               <Endpoint method="PUT" path="/api/v1/account/preferences" desc="Save preferences" />
               <Endpoint method="GET" path="/api/v1/account/export" desc="Export all user data" />
-              <Endpoint method="GET" path="/api/v1/usage" desc="Usage & billing stats" />
+              <Endpoint method="GET" path="/api/v1/account/usage-billing" desc="Usage & billing stats" />
               <Endpoint method="GET" path="/api/v1/account/dashboard-stats" desc="Dashboard analytics" />
-              <Endpoint method="GET" path="/api/v1/account/requests" desc="Request history" />
-              <Endpoint method="DELETE" path="/api/v1/account/requests" desc="Delete request history" />
+              <Endpoint method="GET" path="/api/v1/account/scrape-history" desc="Request history" />
+              <Endpoint method="DELETE" path="/api/v1/account/scrape-history" desc="Delete request history" />
             </div>
           )}
 

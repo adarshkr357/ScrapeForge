@@ -13,7 +13,7 @@ export default function DashboardPage() {
 
   const { data: usage } = useQuery({
     queryKey: ['usage-15'],
-    queryFn: () => api.get('/account/usage?days=15'),
+    queryFn: () => api.get('/account/usage-billing?days=15'),
     refetchInterval: 15000,
   });
 

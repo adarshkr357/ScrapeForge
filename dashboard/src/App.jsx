@@ -5,16 +5,16 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import ScrapePlayground from './pages/ScrapePlayground';
 import CrawlsPage from './pages/CrawlsPage';
-import RequestsPage from './pages/RequestsPage';
-import SearchPage from './pages/SearchPage';
+import ScrapeHistoryPage from './pages/ScrapeHistoryPage';
+import SerpSearchPage from './pages/SerpSearchPage';
 import DatasetsPage from './pages/DatasetsPage';
 import SchedulesPage from './pages/SchedulesPage';
-import ProxyHealthPage from './pages/ProxyHealthPage';
+import ProxyCheckerPage from './pages/ProxyCheckerPage';
 import WorkersPage from './pages/WorkersPage';
 import WebhooksPage from './pages/WebhooksPage';
-import UsagePage from './pages/UsagePage';
+import UsageBillingPage from './pages/UsageBillingPage';
 import SettingsPage from './pages/SettingsPage';
-import DocsPage from './pages/DocsPage';
+import ApiDocsPage from './pages/ApiDocsPage';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -34,17 +34,17 @@ export default function App() {
       }>
         <Route index element={<DashboardPage />} />
         <Route path="playground" element={<ScrapePlayground />} />
-        <Route path="requests" element={<RequestsPage />} />
+        <Route path="scrape-history" element={<ScrapeHistoryPage />} />
         <Route path="crawls" element={<CrawlsPage />} />
-        <Route path="search" element={<SearchPage />} />
+        <Route path="serp-search" element={<SerpSearchPage />} />
         <Route path="datasets" element={<DatasetsPage />} />
         <Route path="schedules" element={<SchedulesPage />} />
-        <Route path="proxies" element={<ProxyHealthPage />} />
+        <Route path="proxy-checker" element={<ProxyCheckerPage />} />
         <Route path="workers" element={<WorkersPage />} />
         <Route path="webhooks" element={<WebhooksPage />} />
-        <Route path="usage" element={<UsagePage />} />
+        <Route path="usage-billing" element={<UsageBillingPage />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="docs" element={<DocsPage />} />
+        <Route path="api-docs" element={<ApiDocsPage />} />
       </Route>
     </Routes>
   );

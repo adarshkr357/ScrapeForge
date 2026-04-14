@@ -52,7 +52,7 @@ export default function SettingsPage() {
   // Fetch usage data for accurate credit info
   const { data: usageData } = useQuery({
     queryKey: ['usage15-settings'],
-    queryFn: () => api.get('/account/usage?days=15'),
+    queryFn: () => api.get('/account/usage-billing?days=15'),
     refetchInterval: 15000,
   });
   const usage = usageData?.data || {};

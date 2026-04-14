@@ -12,9 +12,9 @@ import {
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/playground', icon: Zap, label: 'Playground' },
-  { to: '/requests', icon: ListOrdered, label: 'Scrape History' },
+  { to: '/scrape-history', icon: ListOrdered, label: 'Scrape History' },
   { to: '/crawls', icon: Globe, label: 'Crawls' },
-  { to: '/search', icon: Search, label: 'SERP Search' },
+  { to: '/serp-search', icon: Search, label: 'SERP Search' },
   { to: '/datasets', icon: Database, label: 'Datasets' },
   { to: '/schedules', icon: Clock, label: 'Schedules' },
   { divider: true, label: 'Tools' },
@@ -22,13 +22,13 @@ const navItems = [
   { icon: Camera, label: 'Screenshot', comingSoon: true },
   { icon: FileDown, label: 'PDF Export', comingSoon: true },
   { divider: true, label: 'Infrastructure' },
-  { to: '/proxies', icon: Shield, label: 'Proxy Checker' },
+  { to: '/proxy-checker', icon: Shield, label: 'Proxy Checker' },
   { to: '/workers', icon: Activity, label: 'Workers' },
   { to: '/webhooks', icon: Webhook, label: 'Webhooks' },
   { divider: true, label: 'Account' },
-  { to: '/usage', icon: BarChart3, label: 'Usage & Billing' },
+  { to: '/usage-billing', icon: BarChart3, label: 'Usage & Billing' },
   { to: '/settings', icon: Settings, label: 'Settings' },
-  { to: '/docs', icon: BookOpen, label: 'API Docs' },
+  { to: '/api-docs', icon: BookOpen, label: 'API Docs' },
 ];
 
 export default function Layout() {

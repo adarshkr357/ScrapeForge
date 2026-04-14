@@ -177,7 +177,7 @@ ScrapeForge/
 │   ├── python/               # Http, Browser, Crawl, SERP workers
 │   └── node-browser/         # Playwright workers
 ├── dashboard/                # React Vite Dashboard
-│   ├── src/pages/            # UI Views (Scrape, Usage, Settings)
+│   ├── src/pages/            # UI Views (ScrapeHistory, UsageBilling, SerpSearch, ProxyChecker, etc.)
 │   └── src/components/       # Reusable UI Elements
 ├── services/                 # Background cron/standalone services
 │   ├── proxy-checker/        # Validates proxy IP health

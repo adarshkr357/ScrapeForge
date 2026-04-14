@@ -21,7 +21,7 @@ const PROXY_TYPES = [
   { label: 'SOCKS5', value: 'socks5' },
 ];
 
-export default function ProxyHealthPage() {
+export default function ProxyCheckerPage() {
   const queryClient = useQueryClient();
   const [host, setHost] = useState('');
   const [port, setPort] = useState('');

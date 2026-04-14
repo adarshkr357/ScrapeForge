@@ -3,10 +3,10 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import api from '../api/client';
 import { TrendingUp, Zap, CheckCircle, XCircle, CreditCard } from 'lucide-react';
 
-export default function UsagePage() {
+export default function UsageBillingPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['usage15'],
-    queryFn: () => api.get('/account/usage?days=15'),
+    queryFn: () => api.get('/account/usage-billing?days=15'),
     refetchInterval: 15000,
   });
 

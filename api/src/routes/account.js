@@ -76,8 +76,8 @@ router.post('/change-password', async (req, res) => {
   }
 });
 
-// ── GET /usage ──
-router.get('/usage', async (req, res) => {
+// ── GET /usage-billing ──
+router.get('/usage-billing', async (req, res) => {
   try {
     const { days = 15 } = req.query;
     const numDays = Math.min(parseInt(days) || 15, 90);
@@ -161,8 +161,8 @@ router.get('/usage', async (req, res) => {
   }
 });
 
-// ── GET /requests ──
-router.get('/requests', async (req, res) => {
+// ── GET /scrape-history ──
+router.get('/scrape-history', async (req, res) => {
   try {
     const { limit = 50, skip = 0 } = req.query;
     const filter = { userId: req.user._id, userHidden: { $ne: true } };
@@ -197,8 +197,8 @@ router.get('/requests', async (req, res) => {
   }
 });
 
-// ── DELETE /requests ──
-router.delete('/requests', async (req, res) => {
+// ── DELETE /scrape-history — Bulk delete requests ──
+router.delete('/scrape-history', async (req, res) => {
   try {
     const { requestIds } = req.body;
     let result;

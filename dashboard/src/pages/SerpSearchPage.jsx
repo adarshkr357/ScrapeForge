@@ -52,7 +52,7 @@ const LANGUAGES = [
   { code: 'hi', label: 'Hindi' },
 ];
 
-export default function SearchPage() {
+export default function SerpSearchPage() {
   const [query, setQuery] = useState('');
   const [engine, setEngine] = useState('duckduckgo');
   const [resultType, setResultType] = useState('web');

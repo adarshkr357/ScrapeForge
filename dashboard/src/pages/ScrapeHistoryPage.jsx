@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateUtils';
 import { Globe, Loader2, CheckCircle, XCircle, Trash2, CheckSquare, Square, X, Eye } from 'lucide-react';
 
-export default function RequestsPage() {
+export default function ScrapeHistoryPage() {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState(new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
@@ -14,7 +14,7 @@ export default function RequestsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['requests'],
     queryFn: async () => {
-      const res = await api.get('/account/requests?limit=200');
+      const res = await api.get('/account/scrape-history?limit=200');
       return res.data?.requests || [];
     },
     refetchInterval: (query) => {
@@ -42,7 +42,7 @@ export default function RequestsPage() {
 
   // ── Server-side soft delete (sets userHidden=true in DB) ──
   const deleteMutation = useMutation({
-    mutationFn: (requestIds) => api.delete('/account/requests', { requestIds }),
+    mutationFn: (requestIds) => api.delete('/account/scrape-history', { requestIds }),
     onSuccess: (res, requestIds) => {
       const count = requestIds?.length || requests.length;
       queryClient.invalidateQueries({ queryKey: ['requests'] });
