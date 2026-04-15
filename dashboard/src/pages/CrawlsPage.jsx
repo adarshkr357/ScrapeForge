@@ -3,7 +3,7 @@ import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import toast from 'react-hot-toast';
-import { Globe, Plus, Loader2, X, StopCircle, RefreshCw, Trash2, CheckSquare, Square, Database, Eye, ExternalLink, Download, RotateCcw, Copy, Map } from 'lucide-react';
+import { Globe, Plus, Loader2, X, StopCircle, RefreshCw, Trash2, CheckSquare, Square, Database, Eye, ExternalLink, Download, RotateCcw, Copy, Map, Settings2 } from 'lucide-react';
 
 const API_BASE = `${window.location.protocol}//${window.location.hostname}:8080/api/v1`;
 
@@ -18,6 +18,7 @@ export default function CrawlsPage() {
     url: '', max_pages: 100, max_depth: 3,
     include_patterns: '', exclude_patterns: '',
     respect_robots_txt: true, follow_sitemaps: true,
+    scraper_type: 'auto',
   });
 
   const { data, isLoading, refetch } = useQuery({
@@ -52,6 +53,7 @@ export default function CrawlsPage() {
         max_depth: parseInt(form.max_depth) || 3,
         respect_robots_txt: form.respect_robots_txt,
         follow_sitemaps: form.follow_sitemaps,
+        scraper_type: form.scraper_type || 'auto',
       };
       if (form.include_patterns.trim()) {
         body.include_patterns = form.include_patterns.split(',').map(p => p.trim()).filter(Boolean);
@@ -63,7 +65,7 @@ export default function CrawlsPage() {
       const res = await api.post('/crawl', body);
       toast.success(`Crawl started! ID: ${res.crawlId}`);
       setShowModal(false);
-      setForm({ url: '', max_pages: 100, max_depth: 3, include_patterns: '', exclude_patterns: '', respect_robots_txt: true, follow_sitemaps: true });
+      setForm({ url: '', max_pages: 100, max_depth: 3, include_patterns: '', exclude_patterns: '', respect_robots_txt: true, follow_sitemaps: true, scraper_type: 'auto' });
       queryClient.invalidateQueries({ queryKey: ['crawls'] });
     } catch (err) {
       toast.error(err.message);
@@ -81,6 +83,7 @@ export default function CrawlsPage() {
       exclude_patterns: '',
       respect_robots_txt: true,
       follow_sitemaps: true,
+      scraper_type: crawl.config?.scraperType || 'auto',
     });
     setShowModal(true);
   };
@@ -335,6 +338,7 @@ export default function CrawlsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
                 {[
                   ['Base URL', viewCrawl.baseUrl],
+                  ['Scraper Engine', viewCrawl.config?.scraperType || 'auto'],
                   ['Status', viewCrawl.status],
                   ['Pages Scraped', viewCrawl.pagesScraped],
                   ['Pages Found', viewCrawl.pagesFound],
@@ -411,6 +415,19 @@ export default function CrawlsPage() {
                 <label className="form-label">Exclude Patterns (comma separated)</label>
                 <input className="input" placeholder="/admin/*, /api/*" value={form.exclude_patterns}
                   onChange={e => setForm({ ...form, exclude_patterns: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Settings2 size={14} /> Scraper Engine
+                </label>
+                <select className="input" value={form.scraper_type}
+                  onChange={e => setForm({ ...form, scraper_type: e.target.value })}>
+                  <option value="auto">Auto (Recommended)</option>
+                  <option value="http">HTTP — Fast, static pages</option>
+                  <option value="browser">Browser — Selenium stealth</option>
+                  <option value="node-browser">Node Browser — Playwright JS rendering</option>
+                </select>
+                <div className="form-hint">Select the scraping engine used for each page in the crawl</div>
               </div>
               <div style={{ display: 'flex', gap: 20, marginBottom: 8 }}>
                 <label className="checkbox-label">

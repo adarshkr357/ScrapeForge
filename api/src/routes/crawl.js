@@ -46,6 +46,7 @@ router.post('/', validate('POST /crawl'), ssrfGuardMiddleware, creditCheckMiddle
         respectRobotsTxt: params.respect_robots_txt !== false,
         followSitemaps: params.follow_sitemaps !== false,
         allowSubdomains: params.allow_subdomains || false,
+        scraperType: params.scraper_type || 'auto',
         scrapeOptions: params.scrape_options || {},
         adaptiveMode: params.adaptive_mode || { enabled: false },
         deduplication: params.deduplication || 'content_hash',

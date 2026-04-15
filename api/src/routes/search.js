@@ -11,6 +11,22 @@ const serpQueue = require('../queue/serpQueue');
 const Request = require('../models/Request');
 const Result = require('../models/Result');
 
+// ── Engine Capabilities Map ──
+// Defines which result types each engine actually supports.
+const ENGINE_CAPABILITIES = {
+  duckduckgo: ['web', 'news', 'images', 'videos'],
+  bing:       ['web'],
+  yahoo:      ['web'],
+};
+
+// ── GET /search/capabilities — Engine capability map ──
+router.get('/capabilities', async (req, res) => {
+  res.json({
+    success: true,
+    data: ENGINE_CAPABILITIES,
+  });
+});
+
 // ── POST /search — Full SERP scrape ──
 router.post('/', validate('POST /search'), creditCheckMiddleware, async (req, res) => {
   try {

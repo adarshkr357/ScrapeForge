@@ -137,6 +137,7 @@ const crawlSchema = z.object({
   respect_robots_txt: z.boolean().default(true),
   follow_sitemaps: z.boolean().default(true),
   allow_subdomains: z.boolean().default(false),
+  scraper_type: z.enum(['auto', 'http', 'browser', 'node-browser']).default('auto'),
   scrape_options: z.any().optional(),
   adaptive_mode: z.object({
     enabled: z.boolean().default(false),
@@ -153,9 +154,9 @@ const crawlSchema = z.object({
 
 // ── Search / SERP Schema ──
 const searchSchema = z.object({
-  engine: z.enum(['google', 'bing', 'yahoo', 'duckduckgo', 'yandex', 'baidu', 'naver']).default('google'),
+  engine: z.enum(['bing', 'yahoo', 'duckduckgo']).default('duckduckgo'),
   query: z.string().min(1).max(500),
-  type: z.enum(['web', 'images', 'news', 'shopping', 'maps', 'scholar', 'videos']).default('web'),
+  type: z.enum(['web', 'news', 'images', 'videos']).default('web'),
   country: z.string().length(2).optional(),
   language: z.string().min(2).max(5).optional(),
   location: z.string().optional(),

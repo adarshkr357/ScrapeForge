@@ -1,17 +1,30 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import api from '../api/client';
 import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateUtils';
+import { useSocket } from '../hooks/useSocket';
 import { Globe, Loader2, CheckCircle, XCircle, Trash2, CheckSquare, Square, X, Eye } from 'lucide-react';
 
 export default function ScrapeHistoryPage() {
   const queryClient = useQueryClient();
+  const { subscribe } = useSocket();
   const [selected, setSelected] = useState(new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [viewModal, setViewModal] = useState(null);
   const [modalViewMode, setModalViewMode] = useState('code');
   const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
+
+  // WebSocket: instant refetch when any request completes
+  useEffect(() => {
+    const unsub1 = subscribe('request:update', () => {
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+    });
+    const unsub2 = subscribe('live_feed:entry', () => {
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+    });
+    return () => { unsub1(); unsub2(); };
+  }, [subscribe, queryClient]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['requests'],
@@ -22,7 +35,7 @@ export default function ScrapeHistoryPage() {
     refetchInterval: (query) => {
       const currentData = query.state?.data;
       const hasPending = currentData?.some(r => r.status === 'queued' || r.status === 'processing');
-      return hasPending ? 3000 : false;
+      return hasPending ? 2000 : 5000;
     }
   });
 

@@ -8,7 +8,7 @@ export default function DashboardPage() {
   const { data: statsData, isLoading } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: () => api.get('/account/dashboard-stats'),
-    refetchInterval: 10000,
+    refetchInterval: 5000,
   });
 
   const { data: usage } = useQuery({

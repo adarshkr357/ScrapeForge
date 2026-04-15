@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import api from '../api/client';
+import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Play, Loader2, Copy, Settings2, Code, Globe, Info, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -40,6 +41,7 @@ const LANGUAGES = [
 
 export default function ScrapePlayground() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [url, setUrl] = useState('');
   const [renderJs, setRenderJs] = useState(false);
   const [outputFormat, setOutputFormat] = useState('html');
@@ -136,6 +138,10 @@ export default function ScrapePlayground() {
       setLatency(Date.now() - start);
       setResult(res);
       toast.success(`Scraped in ${Date.now() - start}ms`);
+
+      // Invalidate history cache so Scrape History picks up the new result immediately
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
 
       // If PDF, generate blob URL to avoid CSP issues with data URIs
       const pdfB64 = findField(res, 'pdfBase64');

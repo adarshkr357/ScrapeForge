@@ -16,7 +16,6 @@ undetected-chromedriver==3.5.*
 
 # Search Engines
 duckduckgo-search==7.2.*
-git+https://github.com/tasos-py/Search-Engines-Scraper.git
 
 # Redis (BullMQ-compatible queue consumer)
 redis==5.2.*

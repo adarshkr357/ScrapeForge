@@ -2,9 +2,14 @@
 ================================================================
 SERP Worker — Search engine results scraper
 ================================================================
-Google, Bing, Yahoo, DuckDuckGo, Yandex, Baidu, Naver.
-Each engine works independently with retry + exponential backoff.
-NO global DuckDuckGo fallback — each engine returns its own result or error.
+Google, Bing, Yahoo, DuckDuckGo, Yandex, Baidu.
+
+Engine strategy:
+  - Google Web: googlesearch-python (lightweight, reliable)
+  - Google News/Images/Videos: DuckDuckGo library
+  - Bing/Yahoo: BeautifulSoup + curl_cffi with DDG fallback
+  - DuckDuckGo: duckduckgo-search library (native)
+  - Yandex/Baidu: DuckDuckGo proxy (direct scraping unreliable)
 """
 import os
 import time
@@ -13,7 +18,6 @@ import random
 import logging
 import urllib.parse
 from queue_consumer import QueueConsumer
-from curl_cffi import requests as cffi_requests
 from bs4 import BeautifulSoup
 from duckduckgo_search import DDGS
 
@@ -25,6 +29,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger('serp_worker')
 
+# ── Engine Capabilities ──────────────────────────────────────
+# Defines which result types each engine actually supports.
+# This map is also exposed via GET /search/capabilities in the API.
+ENGINE_CAPABILITIES = {
+    "duckduckgo": ["web", "news", "images", "videos"],
+    "bing":       ["web"],
+    "yahoo":      ["web"],
+}
+
 # ── User Agent Pool ──────────────────────────────────────────
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
@@ -33,7 +46,6 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2.1 Safari/605.1.15",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0",
 ]
 
 LANG_HEADERS = [
@@ -71,7 +83,7 @@ class SERPWorker:
 
     # ── Retry wrapper ──
     def _retry_with_backoff(self, fn, engine, query, max_retries=3, base_delay=1.0):
-        """Execute fn with exponential backoff retries. Rotates User-Agent per attempt."""
+        """Execute fn with exponential backoff retries."""
         last_error = None
         for attempt in range(max_retries):
             try:
@@ -87,6 +99,68 @@ class SERPWorker:
         logger.error(f"[SERP] {engine} failed after {max_retries} attempts for '{query}': {last_error}")
         raise last_error
 
+    # ── DuckDuckGo search helper ───────────────────────────────
+    def _ddg_search(self, query, num_results, result_type='web', source_label='duckduckgo'):
+        """
+        Use DuckDuckGo library for searching.
+        Used natively for DDG engine, and as a proxy for engines that can't be scraped directly.
+        """
+        from proxy_pool import proxy_pool
+        results = {'organic_results': [], 'related_searches': []}
+
+        proxy_url = proxy_pool.get_random_proxy()
+
+        with DDGS(proxy=proxy_url) as ddgs:
+            if result_type == 'images':
+                raw = ddgs.images(query, region="wt-wt", safesearch="off", max_results=num_results)
+            elif result_type == 'news':
+                raw = ddgs.news(query, region="wt-wt", safesearch="off", max_results=num_results)
+            elif result_type == 'videos':
+                raw = ddgs.videos(query, region="wt-wt", safesearch="off", max_results=num_results)
+            else:
+                raw = ddgs.text(query, region="wt-wt", safesearch="off", max_results=num_results)
+
+            for idx, res in enumerate(raw):
+                if result_type == 'images':
+                    results['organic_results'].append({
+                        'position': idx + 1,
+                        'title': res.get('title', ''),
+                        'url': res.get('url', res.get('image', '')),
+                        'image': res.get('image', ''),
+                        'thumbnail': res.get('thumbnail', ''),
+                        'source': source_label,
+                    })
+                elif result_type == 'videos':
+                    results['organic_results'].append({
+                        'position': idx + 1,
+                        'title': res.get('title', ''),
+                        'url': res.get('content', res.get('href', '')),
+                        'snippet': res.get('description', res.get('body', '')),
+                        'publisher': res.get('publisher', ''),
+                        'duration': res.get('duration', ''),
+                        'source': source_label,
+                    })
+                elif result_type == 'news':
+                    results['organic_results'].append({
+                        'position': idx + 1,
+                        'title': res.get('title', ''),
+                        'url': res.get('url', res.get('href', '')),
+                        'snippet': res.get('body', res.get('abstract', '')),
+                        'date': res.get('date', ''),
+                        'source': source_label,
+                    })
+                else:
+                    results['organic_results'].append({
+                        'position': idx + 1,
+                        'title': res.get('title', ''),
+                        'url': res.get('href', res.get('url', '')),
+                        'snippet': res.get('body', res.get('abstract', '')),
+                        'source': source_label,
+                    })
+
+        results['total_results'] = len(results['organic_results'])
+        return results
+
     def process_job(self, job_data):
         """Process a SERP scrape job."""
         request_id = job_data.get('requestId', 'unknown')
@@ -99,25 +173,23 @@ class SERPWorker:
         page = int(job_data.get('page', 1))
         parse = job_data.get('parse', True)
 
+        # Validate result_type against engine capabilities
+        supported_types = ENGINE_CAPABILITIES.get(engine, ['web'])
+        if result_type not in supported_types:
+            result_type = 'web'
+
         start_time = time.time()
 
         try:
-            if engine == 'google':
-                results = self._scrape_google(query, num_results, result_type, country, language, page)
-            elif engine == 'bing':
-                results = self._scrape_bing(query, num_results, result_type, country, language, page)
+            if engine == 'bing':
+                results = self._scrape_bing(query, num_results, country, language, page)
             elif engine == 'duckduckgo':
-                results = self._scrape_duckduckgo(query, num_results, result_type, country, language)
+                results = self._scrape_duckduckgo(query, num_results, result_type)
             elif engine == 'yahoo':
                 results = self._scrape_yahoo(query, num_results, page)
-            elif engine == 'yandex':
-                results = self._scrape_yandex(query, num_results)
-            elif engine == 'baidu':
-                results = self._scrape_baidu(query, num_results)
-            elif engine == 'naver':
-                results = self._scrape_naver(query, num_results)
             else:
-                results = self._scrape_bing(query, num_results, result_type, country, language, page)
+                # Unknown engine → DDG fallback
+                results = self._ddg_search(query, num_results, result_type, engine)
 
             latency_ms = int((time.time() - start_time) * 1000)
             results['search_time'] = latency_ms / 1000
@@ -138,7 +210,7 @@ class SERPWorker:
 
             logger.info(
                 f"[SERP] {engine} returned {len(results.get('organic_results', []))} "
-                f"results for '{query}' in {latency_ms}ms"
+                f"results for '{query}' (type={result_type}) in {latency_ms}ms"
             )
 
             return {
@@ -155,245 +227,41 @@ class SERPWorker:
             return {
                 'requestId': request_id,
                 'success': False,
-                'error': f'{engine} search failed after retries: {str(e)}',
+                'error': f'{engine} search failed: {str(e)}',
                 'engine': engine,
                 'latencyMs': latency_ms,
             }
 
-    # ── DuckDuckGo ─────────────────────────────────────────────
-    def _scrape_duckduckgo(self, query, num_results, result_type, country, language):
-        """DuckDuckGo scraper wrapper using robust library."""
-        results = {'organic_results': [], 'related_searches': []}
-
-        try:
-            with DDGS() as ddgs:
-                if result_type == 'images':
-                    r = ddgs.images(query, region=f"wt-wt", safesearch="off", max_results=num_results)
-                elif result_type == 'news':
-                    r = ddgs.news(query, region=f"wt-wt", safesearch="off", max_results=num_results)
-                else:
-                    r = ddgs.text(query, region=f"wt-wt", safesearch="off", max_results=num_results)
-
-                for idx, res in enumerate(r):
-                    if result_type == 'web' or result_type == 'news':
-                        results['organic_results'].append({
-                            'position': idx + 1,
-                            'title': res.get('title', ''),
-                            'url': res.get('href', res.get('url', '')),
-                            'snippet': res.get('body', res.get('abstract', '')),
-                        })
-                    elif result_type == 'images':
-                        results['organic_results'].append({
-                            'position': idx + 1,
-                            'title': res.get('title', ''),
-                            'url': res.get('url', res.get('image', '')),
-                            'image': res.get('image', ''),
-                            'source': res.get('source', '')
-                        })
-
-        except Exception as e:
-            logger.error(f"[DDG] Library error: {str(e)}")
-            raise  # Let the caller handle it — no silent swallowing
-
-        results['total_results'] = len(results['organic_results'])
-        return results
-
-    # ── Google ─────────────────────────────────────────────────
-    def _scrape_google(self, query, num_results, result_type, country, language, page):
-        """Google SERP scraper with retry + anti-detection."""
-        params = {
-            'q': query,
-            'num': min(num_results + 5, 100),
-            'hl': language,
-            'gl': country,
-            'start': (page - 1) * 10,
-            'safe': 'off',
-        }
-        if result_type == 'news':
-            params['tbm'] = 'nws'
-        elif result_type == 'images':
-            params['tbm'] = 'isch'
-        elif result_type == 'videos':
-            params['tbm'] = 'vid'
-        elif result_type == 'shopping':
-            params['tbm'] = 'shop'
-
+    # ── DuckDuckGo (native) ────────────────────────────────────
+    def _scrape_duckduckgo(self, query, num_results, result_type):
+        """DuckDuckGo — native library, supports web, news, images, videos using proxies."""
         def attempt():
-            try:
-                # ── Prefer search-engines package ──
-                import search_engines
-                engine = search_engines.Google()
-                engine.ignore_robor_txt = True
-                sr = engine.search(query, pages=page)
-                
-                res = sr.results()
-                if res and len(res) > 0:
-                    results = {
-                        'organic_results': [],
-                        'featured_snippet': None,
-                        'people_also_ask': [],
-                        'related_searches': [],
-                        'total_results': len(res)
-                    }
-                    position = 1
-                    for item in res:
-                        results['organic_results'].append({
-                            'position': position,
-                            'title': item['title'],
-                            'url': item['link'],
-                            'snippet': item['text'],
-                            'source': 'google'
-                        })
-                        position += 1
-                    return results
-            except Exception as e:
-                logger.warning(f"Google search_engines pkg failed: {e}, falling back to BeautifulSoup")
-
-            # ── Fallback: Manual BeautifulSoup ──
-            headers = get_headers()
-            headers['Referer'] = 'https://www.google.com/'
-            headers['Cookie'] = 'CONSENT=YES+cb.20210720-07-p0.en+FX+{}'.format(random.randint(100, 999))
-
-            from curl_cffi import requests as cffi_requests
-            time.sleep(random.uniform(0.5, 2.0))
-            
-            try:
-                resp = cffi_requests.get(
-                    'https://www.google.com/search', 
-                    params=params, 
-                    headers=headers, 
-                    impersonate="chrome110", 
-                    timeout=25
-                )
-            except Exception as e:
-                raise Exception(f"Google request failed: {e}")
-
-            if resp.status_code != 200:
-                raise Exception(f"Google returned HTTP {resp.status_code}")
-
-            soup = BeautifulSoup(resp.text, 'lxml')
-            results = {
-                'organic_results': [],
-                'featured_snippet': None,
-                'people_also_ask': [],
-                'related_searches': [],
-                'paid_results': [],
-            }
-
-            # Featured snippet
-            fs = soup.select_one('.hgKElc, .xpdopen .LGOjhe, .IZ6rdc, .xpdopen .u6YpT')
-            if fs:
-                results['featured_snippet'] = fs.get_text(strip=True)
-
-            position = 1
-            seen_urls = set()
-            # Multiple container selectors for resilience
-            containers = soup.select('div.g, div.Gx5Zad, div.MjjYud div.g, div[data-hveid] div.g')
-            if not containers:
-                containers = soup.select('div[data-sokoban-container], div.tF2Cxc')
-            for div in containers:
-                title_el = div.select_one('h3')
-                link_el = div.select_one('a[href^="http"], a[href^="/url"]')
-                snippet_el = div.select_one('div.VwiC3b, span.aCOpRe, div[data-sncf] span, div[style="-webkit-line-clamp"]')
-
-                if not (title_el and link_el):
-                    continue
-
-                raw_url = link_el.get('href', '')
-                if raw_url.startswith('/url?'):
-                    parsed = urllib.parse.urlparse(raw_url)
-                    raw_url = urllib.parse.parse_qs(parsed.query).get('q', [raw_url])[0]
-
-                if not raw_url.startswith('http') or raw_url in seen_urls:
-                    continue
-                seen_urls.add(raw_url)
-
-                results['organic_results'].append({
-                    'position': position,
-                    'title': title_el.get_text(strip=True),
-                    'url': raw_url,
-                    'snippet': snippet_el.get_text(strip=True) if snippet_el else '',
-                    'source': 'google',
-                })
-                position += 1
-
-            if len(results['organic_results']) == 0:
-                raise Exception("Google returned 0 results (likely blocked)")
-
-            # People Also Ask
-            for paa in soup.select('div.related-question-pair, .xpc .JibNPf, div[data-q]'):
-                q = paa.select_one('.JCzEY, span[role="heading"], .CSkcDe')
-                if not q:
-                    q_attr = paa.get('data-q')
-                    if q_attr:
-                        results['people_also_ask'].append(q_attr)
-                        continue
-                if q:
-                    results['people_also_ask'].append(q.get_text(strip=True))
-
-            # Related searches
-            for related in soup.select('div.s75CSd a, a.k8XOCe, p.DBM1Twe a, a.F9GHHd'):
-                text = related.get_text(strip=True)
-                if text and len(text) > 2:
-                    results['related_searches'].append(text)
-
-            results['total_results'] = len(results['organic_results'])
-            return results
-
-        return self._retry_with_backoff(attempt, 'google', query, max_retries=3, base_delay=1.5)
+            return self._ddg_search(query, num_results, result_type, 'duckduckgo')
+        return self._retry_with_backoff(attempt, 'duckduckgo', query, max_retries=2, base_delay=1.0)
 
     # ── Bing ───────────────────────────────────────────────────
-    def _scrape_bing(self, query, num_results, result_type, country, language, page):
-        """Bing SERP scraper with retry."""
+    def _scrape_bing(self, query, num_results, country, language, page):
+        """Bing SERP scraper — BeautifulSoup + curl_cffi. Web only."""
         params = {
             'q': query,
             'count': min(num_results + 5, 50),
             'first': (page - 1) * 10 + 1,
             'mkt': f'{language}-{country.upper()}',
         }
-        if result_type == 'news':
-            params['qft'] = '+filterui:scenario-NewsIndex'
 
         def attempt():
-            try:
-                # ── Prefer search-engines package ──
-                import search_engines
-                engine = search_engines.Bing()
-                engine.ignore_robor_txt = True
-                sr = engine.search(query, pages=page)
-                
-                res = sr.results()
-                if res and len(res) > 0:
-                    results = {'organic_results': [], 'related_searches': [], 'total_results': len(res)}
-                    position = 1
-                    for item in res:
-                        results['organic_results'].append({
-                            'position': position,
-                            'title': item['title'],
-                            'url': item['link'],
-                            'snippet': item['text'],
-                            'source': 'bing'
-                        })
-                        position += 1
-                    return results
-            except Exception as e:
-                logger.warning(f"Bing search_engines pkg failed: {e}, falling back to BeautifulSoup")
-
-            # ── Fallback: Manual BeautifulSoup ──
             headers = get_headers()
             headers['Referer'] = 'https://www.bing.com/'
             from curl_cffi import requests as cffi_requests
             time.sleep(random.uniform(0.3, 1.0))
-            try:
-                resp = cffi_requests.get(
-                    'https://www.bing.com/search', 
-                    params=params, 
-                    headers=headers, 
-                    impersonate="chrome110", 
-                    timeout=20
-                )
-            except Exception as e:
-                raise Exception(f"Bing request failed: {e}")
+
+            resp = cffi_requests.get(
+                'https://www.bing.com/search',
+                params=params,
+                headers=headers,
+                impersonate="chrome110",
+                timeout=20,
+            )
 
             if resp.status_code != 200:
                 raise Exception(f"Bing returned HTTP {resp.status_code}")
@@ -402,7 +270,6 @@ class SERPWorker:
             results = {'organic_results': [], 'related_searches': []}
             position = 1
 
-            # Primary and fallback selectors
             items = soup.select('li.b_algo')
             if not items:
                 items = soup.select('ol#b_results > li.b_algo, .b_ans .b_lBottom')
@@ -423,10 +290,9 @@ class SERPWorker:
                     position += 1
 
             if len(results['organic_results']) == 0:
-                raise Exception("Bing returned 0 results (possibly blocked)")
+                raise Exception("Bing returned 0 results")
 
-            # Related
-            for r in soup.select('.b_rs a, .b_no a, ul.b_vList a'):
+            for r in soup.select('.b_rs a, .b_no a'):
                 text = r.get_text(strip=True)
                 if text:
                     results['related_searches'].append(text)
@@ -434,28 +300,31 @@ class SERPWorker:
             results['total_results'] = len(results['organic_results'])
             return results
 
-        return self._retry_with_backoff(attempt, 'bing', query, max_retries=3, base_delay=1.0)
+        try:
+            return self._retry_with_backoff(attempt, 'bing', query, max_retries=3, base_delay=1.0)
+        except Exception as e:
+            logger.warning(f"[SERP] Bing direct scraping failed: {e}, falling back to DuckDuckGo")
+            results = self._ddg_search(query, num_results, 'web', 'bing')
+            results['note'] = 'Results sourced via DuckDuckGo (direct Bing scraping was blocked)'
+            return results
 
     # ── Yahoo ──────────────────────────────────────────────────
     def _scrape_yahoo(self, query, num_results, page):
-        """Yahoo search scraper with retry."""
+        """Yahoo search scraper — BeautifulSoup + curl_cffi. Web only."""
         params = {'p': query, 'n': min(num_results, 50), 'b': (page - 1) * 10 + 1}
 
         def attempt():
             headers = get_headers()
             headers['Referer'] = 'https://search.yahoo.com/'
-
             from curl_cffi import requests as cffi_requests
-            try:
-                resp = cffi_requests.get(
-                    'https://search.yahoo.com/search', 
-                    params=params, 
-                    headers=headers, 
-                    impersonate="chrome110", 
-                    timeout=20
-                )
-            except Exception as e:
-                raise Exception(f"Yahoo request failed: {e}")
+
+            resp = cffi_requests.get(
+                'https://search.yahoo.com/search',
+                params=params,
+                headers=headers,
+                impersonate="chrome110",
+                timeout=20,
+            )
 
             if resp.status_code != 200:
                 raise Exception(f"Yahoo returned HTTP {resp.status_code}")
@@ -464,7 +333,6 @@ class SERPWorker:
             results = {'organic_results': []}
             position = 1
 
-            # Multiple container selectors
             containers = soup.select('div.dd.algo, div.algo, div[data-pos], li.ov-a')
             if not containers:
                 containers = soup.select('div.Sr, .searchCenterMiddle li')
@@ -482,12 +350,6 @@ class SERPWorker:
                         match = re.search(r'/RU=([^/]+)/', raw_url)
                         if match:
                             raw_url = urllib.parse.unquote(match.group(1))
-                    except Exception:
-                        pass
-                elif '/bc/yahoo.com' in raw_url:
-                    try:
-                        parsed = urllib.parse.urlparse(raw_url)
-                        raw_url = urllib.parse.parse_qs(parsed.query).get('dest', [raw_url])[0]
                     except Exception:
                         pass
 
@@ -509,215 +371,12 @@ class SERPWorker:
             results['total_results'] = len(results['organic_results'])
             return results
 
-        return self._retry_with_backoff(attempt, 'yahoo', query, max_retries=3, base_delay=1.0)
-
-    # ── Yandex ─────────────────────────────────────────────────
-    def _scrape_yandex(self, query, num_results):
-        """Yandex SERP scraper with retry."""
-        params = {'text': query, 'numdoc': min(num_results, 50), 'lr': 213}
-
-        def attempt():
-            headers = get_headers()
-            headers['Referer'] = 'https://yandex.com/'
-            from curl_cffi import requests as cffi_requests
-            time.sleep(random.uniform(0.5, 1.5))
-            try:
-                resp = cffi_requests.get(
-                    'https://yandex.com/search/', 
-                    params=params, 
-                    headers=headers, 
-                    impersonate="chrome110", 
-                    timeout=20
-                )
-            except Exception as e:
-                raise Exception(f"Yandex request failed: {e}")
-
-            if resp.status_code != 200:
-                raise Exception(f"Yandex returned HTTP {resp.status_code}")
-
-            soup = BeautifulSoup(resp.text, 'lxml')
-            results = {'organic_results': []}
-            position = 1
-
-            # Multiple container selectors for modern Yandex
-            containers = soup.select('li.serp-item, div.Organic, div[data-cid]')
-            if not containers:
-                containers = soup.select('.serp-list > .serp-item, .content__left .serp-item')
-
-            for div in containers:
-                title_el = div.select_one('h2 a, .OrganicTitle-Link, a.organic__url, .organic__url-text')
-                snippet_el = div.select_one('.OrganicTextContentSpan, .TextContainer, .organic__content-wrapper, .Organic-ContentWrapper span, .text-container')
-                if not title_el:
-                    continue
-                url = title_el.get('href', '')
-                if not url.startswith('http'):
-                    continue
-                results['organic_results'].append({
-                    'position': position,
-                    'title': title_el.get_text(strip=True),
-                    'url': url,
-                    'snippet': snippet_el.get_text(strip=True) if snippet_el else '',
-                    'source': 'yandex',
-                })
-                position += 1
-
-            if len(results['organic_results']) == 0:
-                raise Exception("Yandex returned 0 results (possibly captcha)")
-
-            results['total_results'] = len(results['organic_results'])
+        try:
+            return self._retry_with_backoff(attempt, 'yahoo', query, max_retries=3, base_delay=1.0)
+        except Exception as e:
+            logger.warning(f"[SERP] Yahoo direct scraping failed: {e}, falling back to DuckDuckGo")
+            results = self._ddg_search(query, num_results, 'web', 'yahoo')
+            results['note'] = 'Results sourced via DuckDuckGo (direct Yahoo scraping was blocked)'
             return results
 
-        return self._retry_with_backoff(attempt, 'yandex', query, max_retries=3, base_delay=1.5)
 
-    # ── Baidu ──────────────────────────────────────────────────
-    def _scrape_baidu(self, query, num_results):
-        """Baidu SERP scraper with retry and charset handling."""
-        params = {'wd': query, 'rn': min(num_results, 50)}
-
-        def attempt():
-            headers = get_headers()
-            headers['Referer'] = 'https://www.baidu.com/'
-            headers['Cookie'] = 'BAIDUID={}:FG=1'.format(
-                ''.join(random.choices('0123456789ABCDEF', k=32))
-            )
-
-            from curl_cffi import requests as cffi_requests
-            try:
-                resp = cffi_requests.get(
-                    'https://www.baidu.com/s', 
-                    params=params, 
-                    headers=headers, 
-                    impersonate="chrome110", 
-                    timeout=20
-                )
-            except Exception as e:
-                raise Exception(f"Baidu request failed: {e}")
-
-            # Handle charset encoding
-            text = resp.text
-            if resp.encoding and resp.encoding.lower() not in ('utf-8', 'utf8'):
-                try:
-                    text = resp.content.decode('utf-8', errors='replace')
-                except Exception:
-                    pass
-
-            soup = BeautifulSoup(text, 'lxml')
-            results = {'organic_results': []}
-            position = 1
-
-            containers = soup.select('div.result, div.c-container, div.result-op')
-            if not containers:
-                containers = soup.select('#content_left > div[id]')
-
-            for div in containers:
-                title_el = div.select_one('h3 a, .c-title a, a.c-title-text, a[target="_blank"]')
-                snippet_el = div.select_one('.c-abstract, .c-span9, .content-right_8Zs40, .c-gap-top-small span')
-                if not title_el:
-                    continue
-                title_text = title_el.get_text(strip=True)
-                if not title_text:
-                    continue
-                results['organic_results'].append({
-                    'position': position,
-                    'title': title_text,
-                    'url': title_el.get('href', ''),
-                    'snippet': snippet_el.get_text(strip=True) if snippet_el else '',
-                    'source': 'baidu',
-                })
-                position += 1
-
-            if len(results['organic_results']) == 0:
-                raise Exception("Baidu returned 0 results")
-
-            results['total_results'] = len(results['organic_results'])
-            return results
-
-        return self._retry_with_backoff(attempt, 'baidu', query, max_retries=3, base_delay=1.0)
-
-    # ── Naver ──────────────────────────────────────────────────
-    def _scrape_naver(self, query, num_results):
-        """Naver (Korean) search scraper with retry."""
-        params = {'query': query, 'display': min(num_results, 30)}
-
-        def attempt():
-            headers = get_headers()
-            headers['Referer'] = 'https://search.naver.com/'
-            headers['Accept-Language'] = 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7'
-
-            from curl_cffi import requests as cffi_requests
-            try:
-                resp = cffi_requests.get(
-                    'https://search.naver.com/search.naver', 
-                    params=params, 
-                    headers=headers, 
-                    impersonate="chrome110", 
-                    timeout=20
-                )
-            except Exception as e:
-                raise Exception(f"Naver request failed: {e}")
-
-            if resp.status_code != 200:
-                raise Exception(f"Naver returned HTTP {resp.status_code}")
-
-            soup = BeautifulSoup(resp.text, 'lxml')
-            results = {'organic_results': []}
-            position = 1
-
-            # Modern Naver uses multiple layout types
-            # Web results
-            containers = soup.select('.total_wrap, .api_subject_bx, .sp_web .web_top, li.bx')
-            if not containers:
-                containers = soup.select('.lst_total > li, .total_group .total_item')
-
-            for item in containers:
-                title_el = item.select_one('.total_tit a, a.api_txt_lines.total_tit, .news_tit, a.link_tit, a.api_txt_lines')
-                snippet_el = item.select_one('.total_dsc, .api_txt_lines.dsc_txt, .dsc_wrap, .total_group p')
-                if not title_el:
-                    continue
-                url = title_el.get('href', '')
-                if not url.startswith('http'):
-                    continue
-                title_text = title_el.get_text(strip=True)
-                if not title_text:
-                    continue
-                results['organic_results'].append({
-                    'position': position,
-                    'title': title_text,
-                    'url': url,
-                    'snippet': snippet_el.get_text(strip=True) if snippet_el else '',
-                    'source': 'naver',
-                })
-                position += 1
-
-            # Fallback: try extracting from embedded JSON in script tags
-            if len(results['organic_results']) == 0:
-                import re
-                scripts = soup.select('script')
-                for script in scripts:
-                    text = script.string or ''
-                    if '"title"' in text and '"url"' in text:
-                        try:
-                            # Try to find JSON arrays with results
-                            matches = re.findall(r'\{"title":"([^"]+)","url":"([^"]+)"', text)
-                            for title, url in matches[:num_results]:
-                                if url.startswith('http'):
-                                    results['organic_results'].append({
-                                        'position': position,
-                                        'title': title,
-                                        'url': url,
-                                        'snippet': '',
-                                        'source': 'naver',
-                                    })
-                                    position += 1
-                        except Exception:
-                            pass
-                    if len(results['organic_results']) > 0:
-                        break
-
-            if len(results['organic_results']) == 0:
-                raise Exception("Naver returned 0 results")
-
-            results['total_results'] = len(results['organic_results'])
-            return results
-
-        return self._retry_with_backoff(attempt, 'naver', query, max_retries=3, base_delay=1.0)

@@ -1,16 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../api/client';
+import { useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Search, Loader2, ExternalLink, Copy, Globe, TrendingUp, Newspaper, Image, ShoppingCart, Play, AlertTriangle } from 'lucide-react';
+import { Search, Loader2, ExternalLink, Copy, Globe, TrendingUp, Newspaper, Image, Play, AlertTriangle } from 'lucide-react';
 
 const ENGINES = [
   { id: 'duckduckgo', label: 'DuckDuckGo', emoji: '🦆' },
-  { id: 'google', label: 'Google', emoji: '🔍' },
   { id: 'bing', label: 'Bing', emoji: '🅱️' },
   { id: 'yahoo', label: 'Yahoo', emoji: '🟣' },
-  { id: 'yandex', label: 'Yandex', emoji: '🟡' },
-  { id: 'baidu', label: 'Baidu', emoji: '🐼' },
-  { id: 'naver', label: 'Naver', emoji: '🟩' },
 ];
 
 const RESULT_TYPES = [
@@ -18,8 +15,15 @@ const RESULT_TYPES = [
   { id: 'news', label: 'News', icon: Newspaper },
   { id: 'images', label: 'Images', icon: Image },
   { id: 'videos', label: 'Videos', icon: Play },
-  { id: 'shopping', label: 'Shopping', icon: ShoppingCart },
 ];
+
+// Defines which result types each engine supports.
+// Engines not listed here default to ['web'] only.
+const ENGINE_CAPABILITIES = {
+  duckduckgo: ['web', 'news', 'images', 'videos'],
+  bing:       ['web'],
+  yahoo:      ['web'],
+};
 
 const COUNTRIES = [
   { code: '', label: 'Any Country' },
@@ -53,6 +57,7 @@ const LANGUAGES = [
 ];
 
 export default function SerpSearchPage() {
+  const queryClient = useQueryClient();
   const [query, setQuery] = useState('');
   const [engine, setEngine] = useState('duckduckgo');
   const [resultType, setResultType] = useState('web');
@@ -69,6 +74,16 @@ export default function SerpSearchPage() {
   const [activeTab, setActiveTab] = useState('results');
   const [meta, setMeta] = useState(null);
   const [error, setError] = useState(null);
+
+  // Auto-reset resultType when engine changes if current type is unsupported
+  const supportedTypes = ENGINE_CAPABILITIES[engine] || ['web'];
+  const availableResultTypes = RESULT_TYPES.filter(t => supportedTypes.includes(t.id));
+
+  useEffect(() => {
+    if (!supportedTypes.includes(resultType)) {
+      setResultType('web');
+    }
+  }, [engine]);
 
   const handleSearch = async () => {
     if (!query.trim()) return toast.error('Enter a search query');
@@ -157,6 +172,10 @@ export default function SerpSearchPage() {
       } else {
         toast('No results found. Try a different query or engine.', { icon: '⚠️' });
       }
+
+      // Invalidate history cache so Scrape History picks up the new SERP result
+      queryClient.invalidateQueries({ queryKey: ['requests'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     } catch (err) {
       const errMsg = err.message || 'Search failed';
       setError(errMsg);
@@ -171,7 +190,7 @@ export default function SerpSearchPage() {
     <div>
       <div className="page-header">
         <h1 className="page-title">SERP Search</h1>
-        <p className="page-subtitle">Scrape search engine results from 7 major search engines</p>
+        <p className="page-subtitle">Scrape search engine results from 3 major search engines</p>
       </div>
 
       <div className="glass-card-static" style={{ marginBottom: 24 }}>
@@ -190,11 +209,11 @@ export default function SerpSearchPage() {
           </div>
         </div>
 
-        {/* Result Type */}
+        {/* Result Type — dynamic per engine */}
         <div style={{ marginBottom: 16 }}>
           <label className="form-label">Result Type</label>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {RESULT_TYPES.map(t => {
+            {availableResultTypes.map(t => {
               const Icon = t.icon;
               return (
                 <button key={t.id}
@@ -205,6 +224,11 @@ export default function SerpSearchPage() {
                 </button>
               );
             })}
+            {availableResultTypes.length === 1 && (
+              <span style={{ fontSize: 12, color: 'var(--sf-text-muted)', alignSelf: 'center', marginLeft: 8 }}>
+                This engine only supports Web results
+              </span>
+            )}
           </div>
         </div>
 
@@ -310,11 +334,7 @@ export default function SerpSearchPage() {
           </div>
         </div>
 
-        {/* Tip */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'rgba(99,102,241,0.06)', borderRadius: 8, fontSize: 12, color: 'var(--sf-text-muted)' }}>
-          <AlertTriangle size={14} style={{ flexShrink: 0, color: 'var(--sf-warning)' }} />
-          <span><strong>Tip:</strong> DuckDuckGo is the most reliable engine. Google may be blocked by anti-bot measures. All engines fall back to DuckDuckGo if they fail.</span>
-        </div>
+
       </div>
 
       {/* Error state */}
