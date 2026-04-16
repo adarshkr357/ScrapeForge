@@ -185,35 +185,4 @@ router.delete('/', async (req, res) => {
 });
 
 
-// ── POST /map — Discover all URLs without scraping ──
-router.post('/map', validate('POST /map'), ssrfGuardMiddleware, async (req, res) => {
-  try {
-    const params = req.validatedBody;
-    const crawlId = `map_${uuid()}`;
-
-    await crawlQueue.add('map', {
-      crawlId,
-      baseUrl: params.url,
-      config: {
-        maxPages: params.max_pages || 10000,
-        includePatterns: params.include_patterns || ['*'],
-        followSitemaps: params.follow_sitemaps !== false,
-        discoverSubdomains: params.discover_subdomains || false,
-        mapOnly: true,  // Signal: don't scrape, just discover URLs
-      },
-      userId: req.user._id.toString(),
-      apiKeyId: req.apiKey?._id?.toString() || null,
-    }, { jobId: crawlId });
-
-    res.status(202).json({
-      success: true,
-      crawlId,
-      status: 'queued',
-      poll_url: `/api/v1/crawl/${crawlId}`,
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: 'MapError', message: err.message });
-  }
-});
-
 module.exports = router;

@@ -126,7 +126,6 @@ protectedRouter.use(auditMiddleware);
 
 protectedRouter.use('/scrape', scrapeRoutes);
 protectedRouter.use('/crawl', crawlRoutes);
-protectedRouter.use('/map', crawlRoutes);  // map is part of crawl routes
 protectedRouter.use('/search', searchRoutes);
 protectedRouter.use('/', toolsRoutes);
 protectedRouter.use('/datasets', datasetsRoutes);

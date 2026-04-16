@@ -10,7 +10,6 @@ const sections = [
   { id: 'params', label: 'All Parameters', icon: FileJson },
   { id: 'js-instructions', label: 'JS Instructions', icon: Code },
   { id: 'crawl', label: 'Crawl API', icon: Globe },
-  { id: 'map', label: 'Map API', icon: Link },
   { id: 'search', label: 'SERP API', icon: Search },
   { id: 'extract', label: 'Extract / Screenshot / PDF', icon: Terminal },
   { id: 'datasets', label: 'Datasets API', icon: Database },
@@ -714,29 +713,6 @@ export default function ApiDocsPage() {
     "exclude_patterns": ["/admin/*", "/api/*"],
     "follow_sitemaps": true
   }'`} />
-            </div>
-          )}
-
-          {/* ═══════════ MAP API ═══════════ */}
-          {activeSection === 'map' && (
-            <div>
-              <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Map API</h2>
-              <p style={{ color: 'var(--sf-text-secondary)', marginBottom: 20 }}>
-                Discover all URLs on a website without scraping content. Returns a site map.
-              </p>
-
-              <Endpoint method="POST" path="/api/v1/map" desc="Map a website's URLs" />
-              <ParamTable>
-                <Param name="url" type="string" required desc="Website URL to map" />
-                <Param name="max_pages" type="number" desc="Maximum URLs to discover (1–50000)" def="10000" />
-                <Param name="include_patterns" type="string[]" desc="Filter discovered URLs" />
-                <Param name="follow_sitemaps" type="boolean" desc="Include sitemap.xml URLs" def="true" />
-                <Param name="discover_subdomains" type="boolean" desc="Include subdomains" def="false" />
-              </ParamTable>
-
-              <CodeBlock code={`curl -X POST "${API_BASE}/map" \\
-  -H "X-API-Key: YOUR_API_KEY" \\
-  -d '{"url": "https://example.com", "max_pages": 5000}'`} />
             </div>
           )}
 

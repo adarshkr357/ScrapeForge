@@ -101,20 +101,6 @@ export default function Layout() {
                 }}>{item.label}</div>
               );
             }
-            if (item.comingSoon) {
-              return (
-                <div key={i} className="sidebar-link" style={{
-                  opacity: 0.45, cursor: 'not-allowed',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <item.icon size={18} />
-                    {item.label}
-                  </span>
-                  <span className="badge badge-info" style={{ fontSize: 9, padding: '2px 6px' }}>Soon</span>
-                </div>
-              );
-            }
             return (
               <NavLink key={item.to} to={item.to} end={item.to === '/'}
                 className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}

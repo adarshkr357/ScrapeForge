@@ -441,15 +441,6 @@ export default function SettingsPage() {
                   onKeyDown={e => e.key === 'Enter' && createApiKey()} />
                 <div className="form-hint" style={{ marginTop: 4 }}>A descriptive name to identify this API key</div>
               </div>
-              <div className="form-group">
-                <label className="form-label">Permissions (Coming Soon)</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, opacity: 0.6 }}>
-                  <label className="checkbox-label" style={{ margin: 0 }}><input type="checkbox" defaultChecked disabled /><span>Scrape API</span></label>
-                  <label className="checkbox-label" style={{ margin: 0 }}><input type="checkbox" defaultChecked disabled /><span>Crawl API</span></label>
-                  <label className="checkbox-label" style={{ margin: 0 }}><input type="checkbox" defaultChecked disabled /><span>Batch API</span></label>
-                  <label className="checkbox-label" style={{ margin: 0 }}><input type="checkbox" defaultChecked disabled /><span>Datasets API</span></label>
-                </div>
-              </div>
               <div className="callout-warning" style={{ marginTop: 16 }}>
                 <Shield size={16} style={{ flexShrink: 0, marginTop: 2 }} />
                 <div>The API key will only be shown once after creation. Make sure to copy and store it securely.</div>

@@ -168,9 +168,6 @@ export default function CrawlsPage() {
           <button className="btn btn-primary" onClick={() => setShowModal(true)}>
             <Plus size={16} /> Start Crawl
           </button>
-          <button className="btn btn-secondary" disabled style={{ opacity: 0.5, cursor: 'not-allowed' }}>
-            <Map size={14} /> Map API <span className="badge badge-info" style={{ marginLeft: 4, fontSize: 10 }}>Soon</span>
-          </button>
         </div>
       </div>
 
