@@ -62,6 +62,12 @@ graph TD
 
 ## 🚀 Quick Start
 
+### 🔴 Live Demo
+You can try out the live deployment of ScrapeForge here:
+**URL:** [https://scrapeforge-app-ca6c2236e22c.herokuapp.com](https://scrapeforge-app-ca6c2236e22c.herokuapp.com)
+**Email:** `demo@scrapeforge.io`
+**Password:** `DemoPass123!`
+
 ### Option 1: 1-Click Heroku Deploy
 
 The easiest way to get a live version of ScrapeForge running is to deploy the pre-configured `heroku` branch directly to Heroku.
