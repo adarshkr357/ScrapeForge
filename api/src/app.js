@@ -179,7 +179,7 @@ app.use((err, req, res, _next) => {
 // ── Database & Server Startup ──
 async function start() {
   const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/scrapeforge';
-  const PORT = parseInt(process.env.API_PORT || '3000', 10);
+  const PORT = parseInt(process.env.PORT || process.env.API_PORT || '3000', 10);
 
   try {
     // Connect MongoDB
