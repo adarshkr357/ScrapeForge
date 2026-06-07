@@ -21,6 +21,10 @@ function getRedisConnection() {
     };
 
     if (process.env.REDIS_URL) {
+      const isTls = process.env.REDIS_URL.startsWith('rediss://');
+      if (isTls) {
+        options.tls = { rejectUnauthorized: false };
+      }
       connection = new Redis(process.env.REDIS_URL, options);
     } else {
       connection = new Redis({
