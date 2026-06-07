@@ -62,7 +62,15 @@ graph TD
 
 ## 🚀 Quick Start
 
-### Option 1: Docker Compose (Recommended)
+### Option 1: 1-Click Heroku Deploy
+
+The easiest way to get a live version of ScrapeForge running is to deploy the pre-configured `heroku` branch directly to Heroku.
+
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/adarshkr357/ScrapeForge/tree/heroku)
+
+*Note: You must have a MongoDB Atlas connection string ready to provide during setup.*
+
+### Option 2: Docker Compose (Recommended)
 
 Get the entire 15-container stack running with a single command. 
 
@@ -79,7 +87,7 @@ cp .env.example .env
 make start
 ```
 
-### Option 2: Local Development Setup
+### Option 3: Local Development Setup
 
 If you want to run the core systems locally without Docker:
 
