@@ -141,6 +141,15 @@ app.use('/api/v1', protectedRouter);
 const { setupWebSocket } = require('./websocket/handler');
 setupWebSocket(io, logger);
 
+// ── Serve React Dashboard (Heroku Unification) ──
+const dashboardPath = path.join(__dirname, '../../dashboard/dist');
+app.use(express.static(dashboardPath));
+
+// For React Router, catch all non-API GET routes and serve index.html
+app.get(/^(?!\/api).*/, (req, res) => {
+  res.sendFile(path.join(dashboardPath, 'index.html'));
+});
+
 // ── 404 Handler ──
 app.use((req, res) => {
   res.status(404).json({

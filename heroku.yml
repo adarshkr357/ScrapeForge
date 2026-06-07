@@ -1,0 +1,51 @@
+build:
+  docker:
+    web: Dockerfile.heroku
+    worker-http: workers/python/Dockerfile
+    worker-browser: workers/python/Dockerfile
+    worker-crawl: workers/python/Dockerfile
+    worker-serp: workers/python/Dockerfile
+    worker-node-browser: workers/node-browser/Dockerfile
+    svc-proxy-check: services/Dockerfile
+    svc-domain-learn: services/Dockerfile
+    svc-scheduler: services/Dockerfile
+    svc-change-detect: services/Dockerfile
+
+run:
+  web: node src/app.js
+  worker-http:
+    command:
+      - python
+      - -u
+      - main.py
+    env:
+      WORKER_TYPE: http
+  worker-browser:
+    command:
+      - python
+      - -u
+      - main.py
+    env:
+      WORKER_TYPE: browser
+  worker-crawl:
+    command:
+      - python
+      - -u
+      - main.py
+    env:
+      WORKER_TYPE: crawl
+  worker-serp:
+    command:
+      - python
+      - -u
+      - main.py
+    env:
+      WORKER_TYPE: serp
+  worker-node-browser:
+    command:
+      - node
+      - src/index.js
+  svc-proxy-check: node proxy-checker/index.js
+  svc-domain-learn: node domain-learner/index.js
+  svc-scheduler: node scheduler/index.js
+  svc-change-detect: node change-detector/index.js

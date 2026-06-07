@@ -1,0 +1,32 @@
+# Stage 1: Build the React Dashboard
+FROM node:20-alpine AS dashboard-build
+WORKDIR /app/dashboard
+
+# Install dashboard dependencies
+COPY dashboard/package*.json ./
+RUN npm install
+
+# Build the dashboard
+COPY dashboard/ ./
+RUN npm run build
+
+# Stage 2: Build the Node API & Serve Dashboard
+FROM node:20-alpine
+WORKDIR /app/api
+
+# Install API dependencies
+COPY api/package*.json ./
+RUN npm install --production
+
+# Copy API source
+COPY api/ ./
+
+# Copy built dashboard assets into the expected directory
+# (api/src/app.js expects them at ../../dashboard/dist)
+COPY --from=dashboard-build /app/dashboard/dist /app/dashboard/dist
+
+# Expose the port Heroku provides
+EXPOSE $PORT
+
+# Start the server
+CMD ["node", "src/app.js"]
