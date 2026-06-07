@@ -1,0 +1,56 @@
+{
+  "name": "ScrapeForge",
+  "description": "Unified Web Scraping & Data Intelligence Platform — Deploy your own instance to Heroku.",
+  "repository": "https://github.com/adarshkr357/ScrapeForge",
+  "logo": "https://raw.githubusercontent.com/adarshkr357/ScrapeForge/main/dashboard/public/logo.svg",
+  "keywords": [
+    "scraping",
+    "web-scraping",
+    "playwright",
+    "selenium",
+    "anti-bot",
+    "data-intelligence"
+  ],
+  "stack": "container",
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "eco"
+    },
+    "worker-node-browser": {
+      "quantity": 1,
+      "size": "eco"
+    }
+  },
+  "addons": [
+    {
+      "plan": "heroku-redis:mini"
+    }
+  ],
+  "env": {
+    "MONGO_URI": {
+      "description": "MongoDB Atlas connection string (mongodb+srv://...)",
+      "required": true
+    },
+    "NODE_ENV": {
+      "description": "Node environment",
+      "value": "production"
+    },
+    "LOG_LEVEL": {
+      "description": "Logging verbosity (error, warn, info, debug)",
+      "value": "info"
+    },
+    "JWT_SECRET": {
+      "description": "Secret key for JWT token signing",
+      "generator": "secret"
+    },
+    "TWOCAPTCHA_API_KEY": {
+      "description": "2Captcha API key for CAPTCHA solving (optional, leave blank to skip)",
+      "required": false,
+      "value": ""
+    }
+  },
+  "scripts": {
+    "postdeploy": "node src/seed.js"
+  }
+}
