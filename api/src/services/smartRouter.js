@@ -102,41 +102,10 @@ class SmartRouter {
    * Decide which worker type to use.
    */
   decideWorkerType(params, domainInfo) {
-    // User explicitly selected a scraper engine
-    if (params.scraper_type && params.scraper_type !== 'auto') {
-      const scraperMap = {
-        'http': 'python-http',
-        'browser': 'python-browser',
-        'node-browser': 'node-browser',
-      };
-      return scraperMap[params.scraper_type] || 'python-http';
-    }
-
-    // User explicitly requested no JS
-    if (params.render_js === false) return 'python-http';
-
-    // JS scenario always needs a browser
-    if (params.js_scenario?.length > 0) {
-      return 'node-browser';
-    }
-
-    // Explicit JS rendering
-    if (params.render_js === true) {
-      return 'node-browser';
-    }
-
-    // Domain known to require JS
-    if (domainInfo.requiresJS) {
-      return 'node-browser';
-    }
-
-    // High difficulty + unknown → try browser
-    if (domainInfo.difficultyScore >= 6 && domainInfo.antiBot !== 'none') {
-      return 'python-browser';
-    }
-
-    // Default: fastest option
-    return 'python-http';
+    // FORCE NODE-BROWSER FOR HEROKU ECO DEPLOYMENT
+    // Since we are restricted to 2 total dynos (1 web, 1 worker),
+    // the node-browser worker handles all requests (both raw HTTP and JS-rendered).
+    return 'node-browser';
   }
 
   /**
