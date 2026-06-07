@@ -68,7 +68,7 @@ app.set('logger', logger);
 
 // ── Middleware Stack ──
 app.use(helmet({
-  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+  contentSecurityPolicy: false,
 }));
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));

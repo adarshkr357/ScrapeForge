@@ -26,7 +26,7 @@ const SCRAPER_INFO = {
   'node-browser': 'Node.js Playwright. Best for complex SPAs and JS rendering.'
 };
 
-const API_BASE = `${window.location.protocol}//${window.location.hostname}:8080/api/v1`;
+const API_BASE = `${window.location.origin}/api/v1`;
 
 const LANGUAGES = [
   { id: 'curl', label: 'cURL', icon: '⌘' },

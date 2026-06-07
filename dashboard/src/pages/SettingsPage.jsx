@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { formatDateTime } from '../utils/dateUtils';
 import { Settings, Key, Copy, Plus, Trash2, X, Loader2, AlertTriangle, Shield, CheckCircle, Lock, User, Globe, Monitor, Download, Clock } from 'lucide-react';
 
-const API_BASE = `${window.location.protocol}//${window.location.hostname}:8080/api/v1`;
+const API_BASE = `${window.location.origin}/api/v1`;
 
 const TIMEZONES = [
   'UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',

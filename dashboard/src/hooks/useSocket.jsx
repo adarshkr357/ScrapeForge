@@ -9,7 +9,7 @@ export function useSocket() {
   useEffect(() => {
     if (!socketInstance) {
       const token = localStorage.getItem('sf_token');
-      socketInstance = io(`${window.location.protocol}//${window.location.hostname}:8080`, {
+      socketInstance = io(window.location.origin, {
         path: '/socket.io/',
         auth: { token },
         transports: ['websocket', 'polling'],

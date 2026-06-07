@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { BookOpen, Code, Key, Globe, Zap, Search, Link, FileJson, Terminal, ChevronRight, Database, Clock, Shield, Webhook, Calendar, Server, CreditCard, Settings } from 'lucide-react';
 
-const API_BASE = `${window.location.protocol}//${window.location.hostname}:8080/api/v1`;
+const API_BASE = `${window.location.origin}/api/v1`;
 
 const sections = [
   { id: 'auth', label: 'Authentication', icon: Key },

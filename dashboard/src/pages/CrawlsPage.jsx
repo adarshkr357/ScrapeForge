@@ -5,7 +5,7 @@ import api from '../api/client';
 import toast from 'react-hot-toast';
 import { Globe, Plus, Loader2, X, StopCircle, RefreshCw, Trash2, CheckSquare, Square, Database, Eye, ExternalLink, Download, RotateCcw, Copy, Map, Settings2 } from 'lucide-react';
 
-const API_BASE = `${window.location.protocol}//${window.location.hostname}:8080/api/v1`;
+const API_BASE = `${window.location.origin}/api/v1`;
 
 export default function CrawlsPage() {
   const queryClient = useQueryClient();

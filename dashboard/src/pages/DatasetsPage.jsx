@@ -4,7 +4,7 @@ import api from '../api/client';
 import toast from 'react-hot-toast';
 import { Database, Download, Trash2, CheckSquare, Square, X, Loader2, FileJson, FileText, FileSpreadsheet, Eye } from 'lucide-react';
 
-const API_BASE = `${window.location.protocol}//${window.location.hostname}:8080/api/v1`;
+const API_BASE = `${window.location.origin}/api/v1`;
 
 export default function DatasetsPage() {
   const queryClient = useQueryClient();
