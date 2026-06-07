@@ -13,12 +13,14 @@ const REDIS_HOST = process.env.REDIS_HOST || '127.0.0.1';
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
 const CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || '50', 10);
 
-const connection = new Redis({
-  host: REDIS_HOST,
-  port: REDIS_PORT,
-  password: process.env.REDIS_PASSWORD || undefined,
-  maxRetriesPerRequest: null,
-});
+const connection = process.env.REDIS_URL 
+  ? new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null })
+  : new Redis({
+      host: REDIS_HOST,
+      port: REDIS_PORT,
+      password: process.env.REDIS_PASSWORD || undefined,
+      maxRetriesPerRequest: null,
+    });
 
 let browser = null;
 
