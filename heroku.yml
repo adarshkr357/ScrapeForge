@@ -15,36 +15,19 @@ run:
   web: node src/app.js
   worker-http:
     command:
-      - python
-      - -u
-      - main.py
-    env:
-      WORKER_TYPE: http
+      - env WORKER_TYPE=http python -u main.py
   worker-browser:
     command:
-      - python
-      - -u
-      - main.py
-    env:
-      WORKER_TYPE: browser
+      - env WORKER_TYPE=browser python -u main.py
   worker-crawl:
     command:
-      - python
-      - -u
-      - main.py
-    env:
-      WORKER_TYPE: crawl
+      - env WORKER_TYPE=crawl python -u main.py
   worker-serp:
     command:
-      - python
-      - -u
-      - main.py
-    env:
-      WORKER_TYPE: serp
+      - env WORKER_TYPE=serp python -u main.py
   worker-node-browser:
     command:
-      - node
-      - src/index.js
+      - node src/index.js
   svc-proxy-check: node proxy-checker/index.js
   svc-domain-learn: node domain-learner/index.js
   svc-scheduler: node scheduler/index.js
